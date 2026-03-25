@@ -1001,8 +1001,9 @@ local function CriarFPSDisplay()
     local frameCount = 0
     local lastTime = tick()
     local fps = 60
+    local renderConn = nil
     
-    local renderConn = RunService.RenderStepped:Connect(function()
+    renderConn = RunService.RenderStepped:Connect(function()
         if not gui.Enabled then return end
         
         frameCount = frameCount + 1
@@ -1025,9 +1026,15 @@ local function CriarFPSDisplay()
         end
     end)
     
-    gui.RenderConnection = renderConn
+    local fpsData = {conn = renderConn, gui = gui}
     
-    return gui
+    gui.AncestryChanged:Connect(function()
+        if not gui.Parent then
+            renderConn:Disconnect()
+        end
+    end)
+    
+    return gui, fpsData
 end
 
 FPSUI = CriarFPSDisplay()
