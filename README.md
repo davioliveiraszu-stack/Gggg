@@ -4,9 +4,9 @@ local Window = WindUI:CreateWindow({
     Title = "SCARLET HUB",
     Author = "By Oliveira",
     Folder = "ScarletHub",
-    Size = UDim2.fromOffset(600, 500),
-    MinSize = Vector2.new(600, 500),
-    MaxSize = Vector2.new(600, 500),
+    Size = UDim2.fromOffset(600, 450),
+    MinSize = Vector2.new(600, 450),
+    MaxSize = Vector2.new(600, 450),
     Transparent = true,
     Theme = "Dark",
     Resizable = true,
@@ -78,96 +78,48 @@ function EventManager:Add(name, connection)
     self.events[name] = connection
 end
 
--- ================================ GERENCIADOR DE LOOPS ================================
+-- ================================ GERENCIADOR DE LOOPS (VERSÃO ANTIGA QUE FUNCIONA) ================================
 
 local LoopManager = {
-    frameTasks = {},
-    throttledTasks = {},
-    frameConn = nil,
-    throttledConn = nil
+    tasks = {},
+    conn = nil
 }
 
-function LoopManager:AddFrame(name, callback)
-    if self.frameTasks[name] then return end
-    self.frameTasks[name] = callback
-    if not self.frameConn then
-        self.frameConn = RunService.RenderStepped:Connect(function()
-            for _, func in pairs(self.frameTasks) do
-                pcall(func)
-            end
-        end)
-    end
-end
-
-function LoopManager:AddThrottled(name, callback, interval)
-    interval = interval or 0.3
-    self.throttledTasks[name] = {func = callback, last = 0, interval = interval}
-    if not self.throttledConn then
-        self.throttledConn = RunService.Heartbeat:Connect(function()
-            local now = tick()
-            for _, task in pairs(self.throttledTasks) do
-                if now - task.last >= task.interval then
-                    task.last = now
-                    pcall(task.func)
+function LoopManager:Add(name, callback)
+    if self.tasks[name] then return end
+    self.tasks[name] = callback
+    if not self.conn then
+        self.conn = RunService.Heartbeat:Connect(function(dt)
+            if next(self.tasks) then
+                for taskName, func in pairs(self.tasks) do
+                    pcall(func, dt)
                 end
             end
         end)
     end
-end
-
-function LoopManager:RemoveFrame(name)
-    self.frameTasks[name] = nil
-    if not next(self.frameTasks) and self.frameConn then
-        self.frameConn:Disconnect()
-        self.frameConn = nil
-    end
-end
-
-function LoopManager:RemoveThrottled(name)
-    self.throttledTasks[name] = nil
-    if not next(self.throttledTasks) and self.throttledConn then
-        self.throttledConn:Disconnect()
-        self.throttledConn = nil
-    end
-end
-
-function LoopManager:Add(name, callback)
-    self:AddFrame(name, callback)
 end
 
 function LoopManager:Remove(name)
-    self:RemoveFrame(name)
+    self.tasks[name] = nil
+    if not next(self.tasks) and self.conn then
+        self.conn:Disconnect()
+        self.conn = nil
+    end
 end
 
--- ================================ CACHE DE MOEDAS (OTIMIZADO) ================================
+-- ================================ CACHE DE MOEDAS ================================
 
 local coinCache = {}
 local coinCacheDirty = true
-local coinUpdateTimer = 0
 
 local function atualizarCacheMoedas()
     if not coinCacheDirty then return end
-    if tick() - coinUpdateTimer < 1 then return end
-    coinUpdateTimer = tick()
-    
     coinCache = {}
-
-    for _, obj in pairs(workspace:GetChildren()) do
-        if obj:IsA("Folder") or obj:IsA("Model") then
-            for _, part in pairs(obj:GetDescendants()) do
-                if part:IsA("BasePart") and part.Transparency < 0.8 then
-                    local nome = part.Name:lower()
-                    if nome:find("coin") or nome:find("gold") or nome:find("money") then
-                        table.insert(coinCache, part)
-                    end
-                end
-            end
-        elseif obj:IsA("BasePart") then
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Transparency < 0.8 then
             local nome = obj.Name:lower()
             if nome:find("coin") or nome:find("gold") or nome:find("money") then
-                if obj.Transparency < 0.8 then
-                    table.insert(coinCache, obj)
-                end
+                table.insert(coinCache, obj)
             end
         end
     end
@@ -206,13 +158,12 @@ Players.PlayerRemoving:Connect(function()
     playerCacheDirty = true
 end)
 
--- ================================ CACHE DE PAPEL (OTIMIZADO) ================================
+-- ================================ CACHE DE PAPEL ================================
 
 local papelCache = {}
-local papelCacheDirty = true
 
 local function getPapel(jogador)
-    if not papelCacheDirty and papelCache[jogador] then
+    if papelCache[jogador] then
         return papelCache[jogador]
     end
     
@@ -247,7 +198,7 @@ Players.PlayerRemoving:Connect(function(plr)
     papelCache[plr] = nil
 end)
 
--- ================================ ANIMAÇÕES ================================
+-- ================================ ANIMAÇÕES (COM IDs CORRIGIDOS) ================================
 
 local ANIMATION_PACKS = {
     Sneaky = { Idle1 = "1132473842", Idle2 = "1132477671", Walk = "1132510133", Run = "1132494274", Jump = "1132489853", Fall = "1132461372", Climb = "1132469004", Swim = "1132513516", SwimIdle = "1132516639" },
@@ -273,10 +224,7 @@ local ANIMATION_PACKS = {
     Stylish = { Idle1 = "616136790", Idle2 = "616138447", Walk = "616146177", Run = "616140816", Jump = "616139451", Fall = "616134815", Climb = "616133594", Swim = "616143378", SwimIdle = "616144772" },
     Confident = { Idle1 = "1069977950", Idle2 = "1069987858", Walk = "1070017263", Run = "1070001516", Jump = "1069984524", Fall = "1069973677", Climb = "1069946257", Swim = "1070009914", SwimIdle = "1070012133" },
     Popstar = { Idle1 = "1212900985", Idle2 = "1212900995", Walk = "1212980348", Run = "1212980338", Jump = "1212954642", Fall = "1212900995", Climb = "1213044953", Swim = "1213028260", SwimIdle = "1213028407" },
-    Princess = { Idle1 = "941003647", Idle2 = "941013098", Walk = "941028902", Run = "941015281", Jump = "941008832", Fall = "941000007", Climb = "940996062", Swim = "941018893", SwimIdle = "941025398" },
-	Fashionable = { Idle1 = "1243872664", Idle2 = "1243874093", Walk = "1243902226", Run = "1243892970", Jump = "1243880869", Fall = "1243876816", Climb = "1243878951", Swim = "1243893288", SwimIdle = "1243893659" },
-	Cutesy = { Idle1 = "10921117521", Idle2 = "10921119966", Walk = "10921122459", Run = "10921123521", Jump = "10921121197", Fall = "10921122135", Climb = "10921124822", Swim = "10921126038", SwimIdle = "10921127184" },
-    Bold = { Idle1 = "16738333868", Idle2 = "16738334710", Walk = "16738335850", Run = "16738336818", Jump = "16738337942", Fall = "16738339008", Climb = "16738340216", Swim = "16738341510", SwimIdle = "16738342679" }
+    Princess = { Idle1 = "941003647", Idle2 = "941013098", Walk = "941028902", Run = "941015281", Jump = "941008832", Fall = "941000007", Climb = "940996062", Swim = "941018893", SwimIdle = "941025398" }
 }
 
 local famousEmotes = {
@@ -297,9 +245,9 @@ local famousEmotes = {
     {name = "Hero Landing", id = "5104374556"},
     {name = "Celebrate", id = "3994130516"},
     {name = "Shuffle Dance", id = "616110314"},
-    {name = "Spin Dance", id = "11985153574"},
-    {name = "Stylish Dance", id = "8907590644"},
-    {name = "Cool Dance", id = "8258889918"}
+    {name = "Spin Dance", id = "616109997"},
+    {name = "Stylish Dance", id = "616111295"},
+    {name = "Cool Dance", id = "616115533"}
 }
 
 local currentEmoteTrack = nil
@@ -310,26 +258,6 @@ local function aplicarPack(pack)
     
     local char = player.Character or player.CharacterAdded:Wait()
     local animate = char:WaitForChild("Animate")
-    local humanoid = char:WaitForChild("Humanoid")
-    local animator = humanoid:FindFirstChild("Animator")
-    
-    if animator then
-        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-            pcall(function() track:Stop() end)
-        end
-        
-        local removed = 0
-        for _, child in pairs(animator:GetChildren()) do
-            if child:IsA("AnimationTrack") then
-                pcall(function() child:Destroy() end)
-                removed = removed + 1
-            end
-        end
-        
-        if removed > 0 then
-            print(" Limpas " .. removed .. " tracks antigas")
-        end
-    end
     
     local function set(folder, id)
         if not folder then return end
@@ -348,54 +276,51 @@ local function aplicarPack(pack)
     set(animate:FindFirstChild("climb"), pack.Climb)
     set(animate:FindFirstChild("swim"), pack.Swim)
     
-    humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    char:WaitForChild("Humanoid"):ChangeState(Enum.HumanoidStateType.Running)
 end
 
 local function playEmote(id, speed)
     local char = player.Character or player.CharacterAdded:Wait()
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
-
-    if currentEmoteTrack then
-        pcall(function()
-            currentEmoteTrack:Stop()
-            currentEmoteTrack:Destroy()
-        end)
-        currentEmoteTrack = nil
-    end
-
+    
     local animator = humanoid:FindFirstChild("Animator")
     if not animator then
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
-
+    
+    if currentEmoteTrack then
+        currentEmoteTrack:Stop()
+        currentEmoteTrack = nil
+    end
+    
     local success = pcall(function()
         humanoid:PlayEmote(tostring(id))
     end)
-
+    
     if success then
-        print(" Emote oficial: " .. id)
+        print("✅ Emote oficial: " .. id)
         return
     end
-
+    
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://" .. tostring(id)
-
+    
     local track = animator:LoadAnimation(anim)
     if track then
-        track.Priority = Enum.AnimationPriority.Action4  
-        track.Looped = false  
+        track.Priority = Enum.AnimationPriority.Action4
+        track.Looped = false
         track:Play()
-
+        
         if speed and speed ~= 1 then
             track:AdjustSpeed(speed)
         end
-
+        
         currentEmoteTrack = track
-        print(" Animation carregada: " .. id)
+        print("✅ Animation carregada: " .. id)
     else
-        warn(" Falhou: " .. id)
+        warn("❌ Falhou: " .. id)
         Notify("Emote não encontrado!", "error")
     end
 end
@@ -411,8 +336,6 @@ end
 
 local ESPHighlights = {}
 local lastESPUpdate = 0
-local espRunning = false
-local espLoopConn = nil
 
 local function limparESPHighlight()
     for player, data in pairs(ESPHighlights) do
@@ -528,25 +451,15 @@ local function atualizarESPHighlight()
 end
 
 local function iniciarESPHighlight()
-    if espRunning then return end
-    espRunning = true
-    
-    if espLoopConn then espLoopConn:Disconnect() end
-    espLoopConn = RunService.Heartbeat:Connect(function()
-        atualizarESPHighlight()
-    end)
+    LoopManager:Add("ESPUpdate", atualizarESPHighlight)
 end
 
 local function pararESPHighlight()
-    espRunning = false
-    if espLoopConn then
-        espLoopConn:Disconnect()
-        espLoopConn = nil
-    end
+    LoopManager:Remove("ESPUpdate")
     limparESPHighlight()
 end
 
--- ================================ ESP ARMA ================================
+-- ================================ ESP ARMA (CORRIGIDO) ================================
 
 local espArmaActive = false
 
@@ -711,7 +624,7 @@ local function moverParaMoeda(moeda)
     local velocidade = 45
     local duracao = distancia / velocidade
     
-    if duracao < 0.5 then duracao = 0.5 end
+    if duracao < 0.3 then duracao = 0.3 end
     
     local tweenInfo = TweenInfo.new(duracao, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
@@ -733,7 +646,7 @@ local function getNearestCoinNatural()
     atualizarCacheMoedas()
     
     local nearestCoin = nil
-    local nearestDist = 150 -- REDUZIDO para mobile
+    local nearestDist = 200
     
     for _, obj in pairs(coinCache) do
         if obj and obj.Parent then
@@ -762,24 +675,17 @@ local function AutoFarmToggle(Value)
     AutoFarmEnabled = Value
     
     if Value then
-        LoopManager:AddThrottled("AutoFarm", AutoFarmTaskNatural, 0.2)
+        if LoopManager.tasks["AutoFarm"] then
+            LoopManager:Remove("AutoFarm")
+        end
+        LoopManager:Add("AutoFarm", AutoFarmTaskNatural)
     else
-        LoopManager:RemoveThrottled("AutoFarm")
+        LoopManager:Remove("AutoFarm")
         pararAutoFarmMovimento()
     end
 end
 
--- ================================ AIMBOT ================================
-
-local AimbotEnabled = false
-local SelectedAimPart = "Head"
-local AimbotFOV = 90
-local AimbotSmoothness = 5
-local IgnoreWalls = false
-local lastPositions = {}
-local lastPositionsCount = 0
-local FOVCircle = nil
-local FOVCircleFrame = nil
+-- ================================ FUNÇÕES DE VISÃO ================================
 
 local function CanSeePlayer(target)
     local myChar = GetChar()
@@ -920,6 +826,8 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
     return closestPlayer
 end
 
+-- ================================ TAREFAS DOS LOOPS ================================
+
 local function AimbotTask()
     if not AimbotEnabled then return end
     if GetChar() and GetHRP() then
@@ -954,55 +862,6 @@ local function AimbotTask()
         end
     end
 end
-
--- ================================ VARIÁVEIS ================================
-
-local LockCamEnabled = false
-local ShowFPSEnabled = false
-local FPSUnlocked = false
-local backpackActive = false
-local headsitActive = false
-local spectateActive = false
-local infJumpEnabled = false
-local flingOPActive = false
-local LockUIActive = false
-local SpeedToggleEnabled = false
-local FOVCamToggleEnabled = false
-local SpinbotEnabled = false
-local headlessActive = false
-local korbloxActive = false
-local flying = false
-local ESPHighlightEnabled = false
-local ESPMM2HighlightEnabled = false
-
-local SpeedValue = 16
-local FovCamValue = 70
-local FlySpeed = 50
-
-local selectedPlayer = nil
-local jumpConnection = nil
-local posicaoOriginal = nil
-local savedPosition = nil
-local lastPositionTP = nil
-local originalHead = nil
-local originalLeftLeg = nil
-local bodyVelocity = nil
-local bodyGyro = nil
-local playerDropdown = nil
-local selectedAnimationPack = nil
-
-local LockUI
-local FPSUI
-local MiraUI
-
-local killAssassinActive = false
-local killSheriffActive = false
-local killAssassinConnection = nil
-local killSheriffConnection = nil
-local killAssassinPos = nil
-local killSheriffPos = nil
-
--- ================================ FUNÇÕES DE VELOCIDADE E CAM ================================
 
 local function SpeedTask()
     local char = GetChar()
@@ -1084,16 +943,15 @@ local function CriarFPSDisplay()
     fpsLabel.Font = Enum.Font.GothamBold
     fpsLabel.TextStrokeTransparency = 0.5
     
-    local frameCount = 0
     local lastTime = tick()
+    local frameCount = 0
     local fps = 60
     
-    local renderConn = RunService.RenderStepped:Connect(function()
+    LoopManager:Add("FPSDisplay", function()
         if not gui.Enabled then return end
         
         frameCount = frameCount + 1
         local currentTime = tick()
-        
         if currentTime - lastTime >= 1 then
             fps = frameCount
             frameCount = 0
@@ -1108,12 +966,6 @@ local function CriarFPSDisplay()
             end
             
             fpsLabel.Text = "FPS: " .. fps
-        end
-    end)
-    
-    gui.AncestryChanged:Connect(function()
-        if not gui.Parent then
-            renderConn:Disconnect()
         end
     end)
     
@@ -1233,7 +1085,7 @@ local function startFly()
     
     humanoid.PlatformStand = true
     
-    LoopManager:AddFrame("FlyUpdate", function()
+    LoopManager:Add("FlyUpdate", function()
         if not flying then return end
         
         local char = GetChar()
@@ -1295,7 +1147,7 @@ local function StopFly()
         bodyGyro = nil
     end
     
-    LoopManager:RemoveFrame("FlyUpdate")
+    LoopManager:Remove("FlyUpdate")
 end
 
 local function toggleFly(state)
@@ -1309,22 +1161,26 @@ end
 
 -- ================================ SPINBOT ================================
 
+local function SpinbotTask()
+    if not SpinbotEnabled then return end
+    
+    local char = GetChar()
+    if not char then return end
+    
+    local hrp = GetHRP(char)
+    if not hrp then return end
+    
+    hrp.RotVelocity = Vector3.new(0, 200, 0)
+end
+
 local function toggleSpinbot(state)
     SpinbotEnabled = state
     
     if state then
-        LoopManager:AddFrame("Spinbot", function()
-            if not SpinbotEnabled then return end
-            local char = GetChar()
-            if char then
-                local hrp = GetHRP(char)
-                if hrp then
-                    hrp.RotVelocity = Vector3.new(0, 200, 0)
-                end
-            end
-        end)
+        LoopManager:Add("Spinbot", SpinbotTask)
     else
-        LoopManager:RemoveFrame("Spinbot")
+        LoopManager:Remove("Spinbot")
+        
         local char = GetChar()
         if char then
             local hrp = GetHRP(char)
@@ -1350,12 +1206,12 @@ end
 local function stopAll()
     if backpackActive then
         backpackActive = false
-        LoopManager:RemoveFrame("Backpack")
+        LoopManager:Remove("Backpack")
     end
     
     if headsitActive then
         headsitActive = false
-        LoopManager:RemoveFrame("Headsit")
+        LoopManager:Remove("Headsit")
     end
     
     if spectateActive then
@@ -1368,22 +1224,20 @@ local function stopAll()
     end
     
     if flingOPActive then
-        flingOPActive = false
-        LoopManager:RemoveFrame("FlingOP")
-        
-        local meuHRP = GetHRP()
-        if meuHRP then
-            meuHRP.RotVelocity = Vector3.new(0, 0, 0)
-            meuHRP.Velocity = Vector3.new(0, 0, 0)
-            meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            meuHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-            
-            if posicaoOriginal then
-                meuHRP.CFrame = posicaoOriginal
-                posicaoOriginal = nil
-            end
-        end
-    end
+	    flingOPActive = false
+	    LoopManager:Remove("FlingOP")
+	    
+	    local meuHRP = GetHRP()
+	    if meuHRP then
+		    meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+		    meuHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+		    
+		    if posicaoOriginal then
+		        meuHRP.CFrame = posicaoOriginal
+		        posicaoOriginal = nil
+		    end
+		end
+	end
     
     local char = GetChar()
     if char and char:FindFirstChild("Humanoid") then
@@ -1473,7 +1327,11 @@ local function toggleKorblox(state)
     local char = GetChar()
     if not char then return end
 
-    local parts = {"LeftUpperLeg", "LeftLowerLeg", "LeftFoot"}
+    local parts = {
+        "LeftUpperLeg",
+        "LeftLowerLeg",
+        "LeftFoot"
+    }
 
     if state then     
         originalLeftLeg = {}
@@ -1509,30 +1367,20 @@ end
 EventManager:Add("CharacterAdded", player.CharacterAdded:Connect(function(char)
     task.wait(0.5)
 
-    local humanoid = GetHumanoid(char)
-    if humanoid then
-        local animator = humanoid:FindFirstChild("Animator")
-        if animator then
-            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                pcall(function() track:Stop() end)
-            end
-        end
-    end
-
     if ESPHighlightEnabled or ESPMM2HighlightEnabled then
         pararESPHighlight()
         task.wait(0.1)
         iniciarESPHighlight()
     end
-
+    
     if flying then
         startFly()
     end
-
+    
     if headlessActive or korbloxActive then
         updateVisuals()
     end
-
+    
     if selectedAnimationPack then
         aplicarPack(ANIMATION_PACKS[selectedAnimationPack])
     end
@@ -1549,6 +1397,69 @@ EventManager:Add("CharacterRemoving", player.CharacterRemoving:Connect(function(
     end
 end))
 
+-- ================================ VARIÁVEIS GLOBAIS ================================
+
+local AimbotEnabled = false
+local LockCamEnabled = false
+local ShowFPSEnabled = false
+local FPSUnlocked = false
+local backpackActive = false
+local headsitActive = false
+local spectateActive = false
+local infJumpEnabled = false
+local flingOPActive = false
+local LockUIActive = false
+local AutoFarmEnabled = false
+local HideNameEnabled = false
+local SpeedToggleEnabled = false
+local FOVCamToggleEnabled = false
+local SpinbotEnabled = false
+local headlessActive = false
+local korbloxActive = false
+local flying = false
+local ESPHighlightEnabled = false
+local ESPMM2HighlightEnabled = false
+
+local SelectedAimPart = "Head"
+local AimbotFOV = 90
+local AimbotSmoothness = 5
+local SpeedValue = 16
+local FovCamValue = 70
+local FlySpeed = 50
+local lastPositionsCount = 0
+
+local lastPositions = {}
+local FOVCircle = nil
+local FOVCircleFrame = nil
+local selectedPlayer = nil
+local posicaoOriginal = nil
+local savedPosition = nil
+local lastPositionTP = nil
+local originalHead = nil
+local originalLeftLeg = nil
+local bodyVelocity = nil
+local bodyGyro = nil
+local playerDropdown = nil
+local selectedAnimationPack = nil
+
+local LockUI
+local MiraUI
+
+local killAssassinActive = false
+local killSheriffActive = false
+local killAssassinConnection = nil
+local killSheriffConnection = nil
+local killAssassinPos = nil
+local killSheriffPos = nil
+local flingAllActive = false
+local flingAllQueue = {}
+local flingAllCurrentTarget = nil
+local flingAllConnection = nil
+local flingAllCheckConnection = nil
+local autoPickupActive = false
+local autoPickupTeleporting = false
+local autoPickupConnection = nil
+
 -- ================================ CRIAÇÃO DAS TABS ================================
 
 local AimbotTab = Window:Tab({Title = "Aimbot", Icon = "crosshair"})
@@ -1559,9 +1470,9 @@ AimbotTab:Toggle({
     Callback = function(Value)
         AimbotEnabled = Value
         if AimbotEnabled then
-            LoopManager:AddFrame("Aimbot", AimbotTask)
+            LoopManager:Add("Aimbot", AimbotTask)
         else
-            LoopManager:RemoveFrame("Aimbot")
+            LoopManager:Remove("Aimbot")
         end
         UpdateFOVCircle()
     end
@@ -1577,7 +1488,7 @@ AimbotTab:Dropdown({
 })
 
 AimbotTab:Slider({
-    Title = "FOV",
+    Title = "Exibir Circulo do FOV",
     Step = 1,
     Value = {
         Min = 30,
@@ -1709,7 +1620,7 @@ JogadorTab:Toggle({
         SpeedToggleEnabled = Value
         if Value then
             SpeedTask()
-            LoopManager:AddFrame("Speed", SpeedTask)
+            LoopManager:Add("Speed", SpeedTask)
         else
             local char = GetChar()
             if char then
@@ -1718,7 +1629,7 @@ JogadorTab:Toggle({
                     humanoid.WalkSpeed = 16
                 end
             end
-            LoopManager:RemoveFrame("Speed")
+            LoopManager:Remove("Speed")
         end
     end
 })
@@ -1746,12 +1657,12 @@ JogadorTab:Toggle({
         FOVCamToggleEnabled = Value
         if Value then
             FovCamTask()
-            LoopManager:AddFrame("FovCam", FovCamTask)
+            LoopManager:Add("FovCam", FovCamTask)
         else
             if camera then
                 camera.FieldOfView = 70
             end
-            LoopManager:RemoveFrame("FovCam")
+            LoopManager:Remove("FovCam")
         end
     end
 })
@@ -1786,9 +1697,9 @@ JogadorTab:Toggle({
     Callback = function(Value)
         NoClipEnabled = Value
         if Value then
-            LoopManager:AddFrame("NoClip", NoClipTask)
+            LoopManager:Add("NoClip", NoClipTask)
         else
-            LoopManager:RemoveFrame("NoClip")
+            LoopManager:Remove("NoClip")
             local char = GetChar()
             if char then
                 for _, part in pairs(char:GetDescendants()) do
@@ -1819,7 +1730,7 @@ JogadorTab:Toggle({
         if LockCamEnabled then
             CreateShiftLockButton()
             CriarMira()
-            LoopManager:AddFrame("LockCam", LockCamTask)
+            LoopManager:Add("LockCam", LockCamTask)
         else
             if LockUI then
                 LockUI:Destroy()
@@ -1829,7 +1740,7 @@ JogadorTab:Toggle({
                 MiraUI:Destroy()
                 MiraUI = nil
             end
-            LoopManager:RemoveFrame("LockCam")
+            LoopManager:Remove("LockCam")
             local char = GetChar()
             if char then
                 local humanoid = GetHumanoid(char)
@@ -2034,9 +1945,9 @@ OnlinesTab:Button({
         stopAll()
         backpackActive = true
         
-        LoopManager:AddFrame("Backpack", function()
+        LoopManager:Add("Backpack", function()
             if not backpackActive or not selectedPlayer or not selectedPlayer.Character then
-                LoopManager:RemoveFrame("Backpack")
+                LoopManager:Remove("Backpack")
                 return
             end
             
@@ -2071,9 +1982,9 @@ OnlinesTab:Button({
         stopAll()
         headsitActive = true
         
-        LoopManager:AddFrame("Headsit", function()
+        LoopManager:Add("Headsit", function()
             if not headsitActive or not selectedPlayer or not selectedPlayer.Character then
-                LoopManager:RemoveFrame("Headsit")
+                LoopManager:Remove("Headsit")
                 return
             end
             
@@ -2133,57 +2044,57 @@ OnlinesTab:Button({
         flingOPActive = true
         posicaoOriginal = myHRP.CFrame
         
-        LoopManager:AddFrame("FlingOP", function()
-		    if not flingOPActive then
-		        LoopManager:RemoveFrame("FlingOP")
-		        return
-		    end
-		
-		    if not selectedPlayer or not selectedPlayer.Character then
-		        stopAll()
-		        return
-		    end
-		
-		    local myHRP = GetHRP()
-		    local targetHRP = GetHRP(selectedPlayer.Character)
-		
-		    if not myHRP or not targetHRP then
-		        return
-		    end
-		
-		    myHRP.AssemblyLinearVelocity = Vector3.new(
-		        math.random(-500, 500),
-		        math.random(400, 900),
-		        math.random(-500, 500)
-		    )
-		
-		    myHRP.AssemblyAngularVelocity = Vector3.new(
-		        math.random(-30, 30),
-		        math.random(-30, 30),
-		        math.random(-30, 30)
-		    )
-		
-		    local randomAngle = CFrame.Angles(
-		        math.rad(math.random(-360, 360)),
-		        math.rad(math.random(-360, 360)),
-		        math.rad(math.random(-360, 360))
-		    )
-		
-		    local yOffset = math.random(-6, 6)
-		
-		    myHRP.CFrame = targetHRP.CFrame *
-		        CFrame.new(
-		            math.random(-1, 1),
-		            yOffset,
-		            math.random(-1, 1)
-		        ) * randomAngle
-		
-		    targetHRP.AssemblyLinearVelocity = Vector3.new(
-		        math.random(-200, 200),
-		        math.random(300, 600),
-		        math.random(-200, 200)
-		    )
-		end)
+        LoopManager:Add("FlingOP", function()
+            if not flingOPActive then
+                LoopManager:Remove("FlingOP")
+                return
+            end
+            
+            if not selectedPlayer or not selectedPlayer.Character then
+                stopAll()
+                return
+            end
+            
+            local myHRP = GetHRP()
+            local targetHRP = GetHRP(selectedPlayer.Character)
+            
+            if not myHRP or not targetHRP then
+                return
+            end
+            
+            myHRP.AssemblyLinearVelocity = Vector3.new(
+                math.random(-500, 500),
+                math.random(400, 900),
+                math.random(-500, 500)
+            )
+            
+            myHRP.AssemblyAngularVelocity = Vector3.new(
+                math.random(-30, 30),
+                math.random(-30, 30),
+                math.random(-30, 30)
+            )
+            
+            local randomAngle = CFrame.Angles(
+                math.rad(math.random(-360, 360)),
+                math.rad(math.random(-360, 360)),
+                math.rad(math.random(-360, 360))
+            )
+            
+            local yOffset = math.random(-6, 6)
+            
+            myHRP.CFrame = targetHRP.CFrame *
+                CFrame.new(
+                    math.random(-1, 1),
+                    yOffset,
+                    math.random(-1, 1)
+                ) * randomAngle
+            
+            targetHRP.AssemblyLinearVelocity = Vector3.new(
+                math.random(-200, 200),
+                math.random(300, 600),
+                math.random(-200, 200)
+            )
+        end)
     end
 })
 
@@ -2232,13 +2143,15 @@ MM2Tab:Toggle({
         espArmaActive = Value
         if Value then
             criarESPArmas()
-            LoopManager:AddThrottled("ESPArmas", function()
+            LoopManager:Add("ESPArmas", function()
                 if espArmaActive then
                     criarESPArmas()
+                else
+                    LoopManager:Remove("ESPArmas")
                 end
-            end, 1)
+            end)
         else
-            LoopManager:RemoveThrottled("ESPArmas")
+            LoopManager:Remove("ESPArmas")
             removerESPArmas()
         end
     end
@@ -2303,7 +2216,7 @@ local function pararJogarAssassino()
             killAssassinConnection:Disconnect()
             killAssassinConnection = nil
         end
-        LoopManager:RemoveFrame("KillAssassinFling")
+        LoopManager:Remove("KillAssassinFling")
         local meuHRP = GetHRP()
         if meuHRP then
             meuHRP.RotVelocity = Vector3.new(0, 0, 0)
@@ -2325,7 +2238,7 @@ local function pararJogarXerife()
             killSheriffConnection:Disconnect()
             killSheriffConnection = nil
         end
-        LoopManager:RemoveFrame("KillSheriffFling")
+        LoopManager:Remove("KillSheriffFling")
         local meuHRP = GetHRP()
         if meuHRP then
             meuHRP.RotVelocity = Vector3.new(0, 0, 0)
@@ -2373,9 +2286,9 @@ MM2Tab:Button({
         killAssassinActive = true
         killAssassinPos = myHRP.CFrame
         
-        LoopManager:AddFrame("KillAssassinFling", function()
+        LoopManager:Add("KillAssassinFling", function()
             if not killAssassinActive then
-                LoopManager:RemoveFrame("KillAssassinFling")
+                LoopManager:Remove("KillAssassinFling")
                 return
             end
             
@@ -2401,37 +2314,37 @@ MM2Tab:Button({
             end
             
             myHRP.AssemblyLinearVelocity = Vector3.new(
-		        math.random(-500, 500),
-		        math.random(400, 900),
-		        math.random(-500, 500)
-		    )
-		
-		    myHRP.AssemblyAngularVelocity = Vector3.new(
-		        math.random(-30, 30),
-		        math.random(-30, 30),
-		        math.random(-30, 30)
-		    )
-		
-		    local randomAngle = CFrame.Angles(
-		        math.rad(math.random(-360, 360)),
-		        math.rad(math.random(-360, 360)),
-		        math.rad(math.random(-360, 360))
-		    )
-		
-		    local yOffset = math.random(-6, 6)
-		
-		    myHRP.CFrame = targetHRP.CFrame *
-		        CFrame.new(
-		            math.random(-1, 1),
-		            yOffset,
-		            math.random(-1, 1)
-		        ) * randomAngle
-		
-		    targetHRP.AssemblyLinearVelocity = Vector3.new(
-		        math.random(-200, 200),
-		        math.random(300, 600),
-		        math.random(-200, 200)
-		    )
+                math.random(-500, 500),
+                math.random(400, 900),
+                math.random(-500, 500)
+            )
+            
+            myHRP.AssemblyAngularVelocity = Vector3.new(
+                math.random(-30, 30),
+                math.random(-30, 30),
+                math.random(-30, 30)
+            )
+            
+            local randomAngle = CFrame.Angles(
+                math.rad(math.random(-360, 360)),
+                math.rad(math.random(-360, 360)),
+                math.rad(math.random(-360, 360))
+            )
+            
+            local yOffset = math.random(-6, 6)
+            
+            myHRP.CFrame = targetHRP.CFrame *
+                CFrame.new(
+                    math.random(-1, 1),
+                    yOffset,
+                    math.random(-1, 1)
+                ) * randomAngle
+            
+            targetHRP.AssemblyLinearVelocity = Vector3.new(
+                math.random(-200, 200),
+                math.random(300, 600),
+                math.random(-200, 200)
+            )
         end)
     end
 })
@@ -2469,9 +2382,9 @@ MM2Tab:Button({
         killSheriffActive = true
         killSheriffPos = myHRP.CFrame
         
-        LoopManager:AddFrame("KillSheriffFling", function()
+        LoopManager:Add("KillSheriffFling", function()
             if not killSheriffActive then
-                LoopManager:RemoveFrame("KillSheriffFling")
+                LoopManager:Remove("KillSheriffFling")
                 return
             end
             
@@ -2497,47 +2410,40 @@ MM2Tab:Button({
             end
             
             myHRP.AssemblyLinearVelocity = Vector3.new(
-		        math.random(-500, 500),
-		        math.random(400, 900),
-		        math.random(-500, 500)
-		    )
-		
-		    myHRP.AssemblyAngularVelocity = Vector3.new(
-		        math.random(-30, 30),
-		        math.random(-30, 30),
-		        math.random(-30, 30)
-		    )
-		
-		    local randomAngle = CFrame.Angles(
-		        math.rad(math.random(-360, 360)),
-		        math.rad(math.random(-360, 360)),
-		        math.rad(math.random(-360, 360))
-		    )
-		
-		    local yOffset = math.random(-6, 6)
-		
-		    myHRP.CFrame = targetHRP.CFrame *
-		        CFrame.new(
-		            math.random(-1, 1),
-		            yOffset,
-		            math.random(-1, 1)
-		        ) * randomAngle
-		
-		    targetHRP.AssemblyLinearVelocity = Vector3.new(
-		        math.random(-200, 200),
-		        math.random(300, 600),
-		        math.random(-200, 200)
-		    )
+                math.random(-500, 500),
+                math.random(400, 900),
+                math.random(-500, 500)
+            )
+            
+            myHRP.AssemblyAngularVelocity = Vector3.new(
+                math.random(-30, 30),
+                math.random(-30, 30),
+                math.random(-30, 30)
+            )
+            
+            local randomAngle = CFrame.Angles(
+                math.rad(math.random(-360, 360)),
+                math.rad(math.random(-360, 360)),
+                math.rad(math.random(-360, 360))
+            )
+            
+            local yOffset = math.random(-6, 6)
+            
+            myHRP.CFrame = targetHRP.CFrame *
+                CFrame.new(
+                    math.random(-1, 1),
+                    yOffset,
+                    math.random(-1, 1)
+                ) * randomAngle
+            
+            targetHRP.AssemblyLinearVelocity = Vector3.new(
+                math.random(-200, 200),
+                math.random(300, 600),
+                math.random(-200, 200)
+            )
         end)
     end
 })
-
-local flingAllActive = false
-local flingAllQueue = {}
-local flingAllCurrentTarget = nil
-local flingAllConnection = nil
-local flingAllCheckConnection = nil
-local flingAllLoopRunning = false
 
 local function pararFlingAll()
     if flingAllActive then
@@ -2552,16 +2458,14 @@ local function pararFlingAll()
             pcall(function() flingAllCheckConnection:Disconnect() end)
             flingAllCheckConnection = nil
         end
-        if flingAllLoopRunning then
-            LoopManager:RemoveFrame("FlingAll")
-            flingAllLoopRunning = false
-        end
+        LoopManager:Remove("FlingAll")
         Notify("Jogar todos longe desativado", "info")
     end
 end
 
 local function flingarJogador(alvo)
     if not alvo or not alvo.Character then
+        processarProximoAlvo()
         return false
     end
     
@@ -2569,6 +2473,7 @@ local function flingarJogador(alvo)
     local myChar = GetChar()
     
     if not targetChar or not myChar then
+        processarProximoAlvo()
         return false
     end
     
@@ -2576,27 +2481,30 @@ local function flingarJogador(alvo)
     local myHRP = GetHRP(myChar)
     
     if not targetHRP or not myHRP then
+        processarProximoAlvo()
         return false
     end
     
     local humanoid = GetHumanoid(targetChar)
     if not humanoid or humanoid.Health <= 0 then
+        processarProximoAlvo()
         return false
     end
     
     flingAllCurrentTarget = alvo
+    
     local posicaoInicial = targetHRP.Position
-    local flingTimeout = tick() + 5 
+    local flingTimeout = tick() + 5
     
     if flingAllLoopRunning then
-        LoopManager:RemoveFrame("FlingAll")
+        LoopManager:Remove("FlingAll")
         flingAllLoopRunning = false
     end
     
-    LoopManager:AddFrame("FlingAll", function()
+    LoopManager:Add("FlingAll", function()
         if not flingAllActive or not flingAllCurrentTarget then
             if flingAllLoopRunning then
-                LoopManager:RemoveFrame("FlingAll")
+                LoopManager:Remove("FlingAll")
                 flingAllLoopRunning = false
             end
             return
@@ -2633,37 +2541,37 @@ local function flingarJogador(alvo)
         end
         
         myHRP.AssemblyLinearVelocity = Vector3.new(
-	        math.random(-500, 500),
-	        math.random(400, 900),
-	        math.random(-500, 500)
-	    )
-	
-	    myHRP.AssemblyAngularVelocity = Vector3.new(
-	        math.random(-30, 30),
-	        math.random(-30, 30),
-	        math.random(-30, 30)
-	    )
-	
-	    local randomAngle = CFrame.Angles(
-	        math.rad(math.random(-360, 360)),
-	        math.rad(math.random(-360, 360)),
-	        math.rad(math.random(-360, 360))
-	    )
-	
-	    local yOffset = math.random(-6, 6)
-	
-	    myHRP.CFrame = targetHRP.CFrame *
-	        CFrame.new(
-	            math.random(-1, 1),
-	            yOffset,
-	            math.random(-1, 1)
-	        ) * randomAngle
-	
-	    targetHRP.AssemblyLinearVelocity = Vector3.new(
-	        math.random(-200, 200),
-	        math.random(300, 600),
-	        math.random(-200, 200)
-	    )
+            math.random(-500, 500),
+            math.random(400, 900),
+            math.random(-500, 500)
+        )
+        
+        myHRP.AssemblyAngularVelocity = Vector3.new(
+            math.random(-30, 30),
+            math.random(-30, 30),
+            math.random(-30, 30)
+        )
+        
+        local randomAngle = CFrame.Angles(
+            math.rad(math.random(-360, 360)),
+            math.rad(math.random(-360, 360)),
+            math.rad(math.random(-360, 360))
+        )
+        
+        local yOffset = math.random(-6, 6)
+        
+        myHRP.CFrame = targetHRP.CFrame *
+            CFrame.new(
+                math.random(-1, 1),
+                yOffset,
+                math.random(-1, 1)
+            ) * randomAngle
+        
+        targetHRP.AssemblyLinearVelocity = Vector3.new(
+            math.random(-200, 200),
+            math.random(300, 600),
+            math.random(-200, 200)
+        )
     end)
     flingAllLoopRunning = true
     
@@ -2682,13 +2590,15 @@ local function flingarJogador(alvo)
     return true
 end
 
+local flingAllLoopRunning = false
+
 local function processarProximoAlvo()
     if not flingAllActive then
         return
     end
     
     if flingAllLoopRunning then
-        LoopManager:RemoveFrame("FlingAll")
+        LoopManager:Remove("FlingAll")
         flingAllLoopRunning = false
     end
     
@@ -2741,7 +2651,7 @@ MM2Tab:Button({
                     local hrp = GetHRP(char)
                     if hrp then
                         local distancia = (hrp.Position - myPos).Magnitude
-                        if distancia <= 200 then
+                        if distancia <= 300 then
                             table.insert(flingAllQueue, plr)
                         end
                     end
@@ -2755,7 +2665,7 @@ MM2Tab:Button({
         end
         
         flingAllActive = true
-        Notify("Lançando " .. #flingAllQueue .. " jogadores...", "info")
+        
         processarProximoAlvo()
     end
 })
@@ -2819,10 +2729,6 @@ EventManager:Add("PlayerRemoving", Players.PlayerRemoving:Connect(function(p)
 end))
 
 MM2Tab:Section({Title = "Utilidades"})
-
-local autoPickupActive = false
-local autoPickupTeleporting = false
-local autoPickupConnection = nil
 
 local function encontrarArmaNoChao()
     for _, obj in pairs(workspace:GetDescendants()) do
@@ -3034,12 +2940,11 @@ AnimationsTab:Section({Title = "Full Packs"})
 AnimationsTab:Dropdown({
     Title = "Animation Packs",
     Values = {
-        "Cartoony", "Knight", "Toy", "Elder", "Mage",
-        "Ninja", "Astronaut", "Zombie", "Pirate", "Vampire",
-        "Werewolf", "Levitation", "AdidasCommunity", "AdidasSports", "Ghost",
-        "Patrol", "SuperHero", "Sneaky", "Popstar", "Confident", 
-        "Stylish", "Robot", "Bubbly", "Princess", "Fashionable",
-        "Cutesy", "Bold"
+        "Sneaky", "Patrol", "Ghost", "AdidasSports", "AdidasCommunity",
+        "Levitation", "Werewolf", "Vampire", "Pirate", "Zombie",
+        "Astronaut", "Ninja", "Mage", "Elder", "Toy",
+        "Knight", "Cartoony", "SuperHero", "Bubbly", "Robot",
+        "Stylish", "Confident", "Popstar", "Princess"
     },
     Default = "Nenhum",
     Callback = function(Value)
