@@ -78,16 +78,15 @@ function EventManager:Add(name, connection)
     self.events[name] = connection
 end
 
--- ================================ GERENCIADOR DE LOOPS OTIMIZADO ================================
+-- ================================ GERENCIADOR DE LOOPS ================================
 
 local LoopManager = {
-    frameTasks = {},     -- Tarefas que rodam todo frame (aimbot, fly, lockcam)
-    throttledTasks = {}, -- Tarefas que rodam com intervalo (ESP, autofarm)
+    frameTasks = {},
+    throttledTasks = {},
     frameConn = nil,
     throttledConn = nil
 }
 
--- Adiciona tarefa que roda TODO FRAME (necessário para aimbot, fly, etc)
 function LoopManager:AddFrame(name, callback)
     if self.frameTasks[name] then return end
     self.frameTasks[name] = callback
@@ -100,7 +99,6 @@ function LoopManager:AddFrame(name, callback)
     end
 end
 
--- Adiciona tarefa com throttle (ESP, AutoFarm, etc) - padrão 0.3s
 function LoopManager:AddThrottled(name, callback, interval)
     interval = interval or 0.3
     self.throttledTasks[name] = {func = callback, last = 0, interval = interval}
@@ -133,7 +131,6 @@ function LoopManager:RemoveThrottled(name)
     end
 end
 
--- Compatibilidade com código antigo
 function LoopManager:Add(name, callback)
     self:AddFrame(name, callback)
 end
@@ -239,12 +236,6 @@ local function getPapel(jogador)
     return papel
 end
 
-local function invalidarCachePapel(jogador)
-    papelCache[jogador] = nil
-    papelCacheDirty = true
-end
-
--- Limpar cache quando jogador muda de item
 Players.PlayerAdded:Connect(function(plr)
     papelCache[plr] = nil
     plr.CharacterAdded:Connect(function()
@@ -368,10 +359,11 @@ local function stopEmote()
     end
 end
 
--- ================================ ESP HIGHLIGHT (OTIMIZADO) ================================
+-- ================================ ESP HIGHLIGHT ================================
 
 local ESPHighlights = {}
 local lastESPUpdate = 0
+local espRunning = false
 
 local function limparESPHighlight()
     for player, data in pairs(ESPHighlights) do
@@ -420,7 +412,7 @@ local function atualizarESPHighlight()
         
         local distancia = (root.Position - myPos).Magnitude
         
-        if distancia > 250 then -- REDUZIDO para mobile
+        if distancia > 250 then
             if ESPHighlights[plr] then
                 pcall(function()
                     if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
@@ -442,16 +434,11 @@ local function atualizarESPHighlight()
             else
                 cor = Color3.fromRGB(0, 255, 0)
             end
+        elseif ESPHighlightEnabled then
+            cor = Color3.fromRGB(255, 255, 0)
         end
         
         if not ESPHighlights[plr] then
-            local highlight = Instance.new("Highlight")
-            highlight.Parent = char
-            highlight.FillTransparency = 0.7
-            highlight.OutlineTransparency = 0.3
-            highlight.FillColor = cor
-            highlight.OutlineColor = cor
-            
             local billboard = Instance.new("BillboardGui")
             billboard.Name = "ESPBillboard"
             billboard.Parent = char:FindFirstChild("Head") or char
@@ -463,31 +450,34 @@ local function atualizarESPHighlight()
             textLabel.Parent = billboard
             textLabel.Size = UDim2.new(1, 0, 1, 0)
             textLabel.BackgroundTransparency = 1
-            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            textLabel.TextStrokeTransparency = 0.5
+            textLabel.TextColor3 = cor
+            textLabel.TextStrokeTransparency = 0.3
             textLabel.Font = Enum.Font.GothamBold
-            textLabel.TextSize = 10
+            textLabel.TextSize = 14
             textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+            textLabel.TextScaled = true
             
-            ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
+            textLabel.TextStrokeTransparency = 0.3
+            
+            ESPHighlights[plr] = {Billboard = billboard, TextLabel = textLabel}
         else
             local data = ESPHighlights[plr]
-            if data.Highlight then
-                data.Highlight.FillColor = cor
-                data.Highlight.OutlineColor = cor
-            end
             if data.TextLabel then
                 data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+                data.TextLabel.TextColor3 = cor
             end
         end
     end
 end
 
 local function iniciarESPHighlight()
+    if espRunning then return end
+    espRunning = true
     LoopManager:AddThrottled("ESPUpdate", atualizarESPHighlight, 0.4)
 end
 
 local function pararESPHighlight()
+    espRunning = false
     LoopManager:RemoveThrottled("ESPUpdate")
     limparESPHighlight()
 end
@@ -632,7 +622,7 @@ local function moverParaMoeda(moeda)
     
     local targetPos = moeda.Position + Vector3.new(0, 2, 0)
     local distancia = (targetPos - hrp.Position).Magnitude
-    local velocidade = 60
+    local velocidade = 45
     local duracao = distancia / velocidade
     
     if duracao < 0.1 then duracao = 0.1 end
@@ -925,12 +915,6 @@ local killAssassinConnection = nil
 local killSheriffConnection = nil
 local killAssassinPos = nil
 local killSheriffPos = nil
-local flingAllActive = false
-local flingAllQueue = {}
-local flingAllCurrentTarget = nil
-local flingAllConnection = nil
-local flingAllCheckConnection = nil
-local autoPickupActive = false
 
 -- ================================ FUNÇÕES DE VELOCIDADE E CAM ================================
 
@@ -1014,15 +998,16 @@ local function CriarFPSDisplay()
     fpsLabel.Font = Enum.Font.GothamBold
     fpsLabel.TextStrokeTransparency = 0.5
     
-    local lastTime = tick()
     local frameCount = 0
+    local lastTime = tick()
     local fps = 60
     
-    LoopManager:AddThrottled("FPSDisplay", function()
+    local renderConn = RunService.RenderStepped:Connect(function()
         if not gui.Enabled then return end
         
         frameCount = frameCount + 1
         local currentTime = tick()
+        
         if currentTime - lastTime >= 1 then
             fps = frameCount
             frameCount = 0
@@ -1038,7 +1023,9 @@ local function CriarFPSDisplay()
             
             fpsLabel.Text = "FPS: " .. fps
         end
-    end, 0.1)
+    end)
+    
+    gui.RenderConnection = renderConn
     
     return gui
 end
@@ -2216,24 +2203,6 @@ local function pararJogarXerife()
     end
 end
 
-local function pararFlingAll()
-    if flingAllActive then
-        flingAllActive = false
-        flingAllQueue = {}
-        flingAllCurrentTarget = nil
-        if flingAllConnection then
-            flingAllConnection:Disconnect()
-            flingAllConnection = nil
-        end
-        if flingAllCheckConnection then
-            flingAllCheckConnection:Disconnect()
-            flingAllCheckConnection = nil
-        end
-        LoopManager:RemoveFrame("FlingAll")
-        Notify("Jogar todos longe desativado", "info")
-    end
-end
-
 MM2Tab:Button({
     Title = "Jogar Assassino Longe",
     Callback = function()
@@ -2414,36 +2383,36 @@ MM2Tab:Button({
     end
 })
 
-local function processarProximoAlvo()
-    if not flingAllActive then
-        return
+local flingAllActive = false
+local flingAllQueue = {}
+local flingAllCurrentTarget = nil
+local flingAllConnection = nil
+local flingAllCheckConnection = nil
+local flingAllLoopRunning = false
+
+local function pararFlingAll()
+    if flingAllActive then
+        flingAllActive = false
+        flingAllQueue = {}
+        flingAllCurrentTarget = nil
+        if flingAllConnection then
+            pcall(function() flingAllConnection:Disconnect() end)
+            flingAllConnection = nil
+        end
+        if flingAllCheckConnection then
+            pcall(function() flingAllCheckConnection:Disconnect() end)
+            flingAllCheckConnection = nil
+        end
+        if flingAllLoopRunning then
+            LoopManager:RemoveFrame("FlingAll")
+            flingAllLoopRunning = false
+        end
+        Notify("Jogar todos longe desativado", "info")
     end
-    
-    LoopManager:RemoveFrame("FlingAll")
-    
-    if flingAllConnection then
-        flingAllConnection:Disconnect()
-        flingAllConnection = nil
-    end
-    
-    if flingAllCheckConnection then
-        flingAllCheckConnection:Disconnect()
-        flingAllCheckConnection = nil
-    end
-    
-    if #flingAllQueue == 0 then
-        pararFlingAll()
-        Notify("Todos os jogadores foram lançados!", "success")
-        return
-    end
-    
-    local proximo = table.remove(flingAllQueue, 1)
-    flingarJogador(proximo)
 end
 
 local function flingarJogador(alvo)
     if not alvo or not alvo.Character then
-        processarProximoAlvo()
         return false
     end
     
@@ -2451,7 +2420,6 @@ local function flingarJogador(alvo)
     local myChar = GetChar()
     
     if not targetChar or not myChar then
-        processarProximoAlvo()
         return false
     end
     
@@ -2459,32 +2427,43 @@ local function flingarJogador(alvo)
     local myHRP = GetHRP(myChar)
     
     if not targetHRP or not myHRP then
-        processarProximoAlvo()
         return false
     end
     
     local humanoid = GetHumanoid(targetChar)
     if not humanoid or humanoid.Health <= 0 then
-        processarProximoAlvo()
         return false
     end
     
     flingAllCurrentTarget = alvo
-    
     local posicaoInicial = targetHRP.Position
+    local flingTimeout = tick() + 5 
+    
+    if flingAllLoopRunning then
+        LoopManager:RemoveFrame("FlingAll")
+        flingAllLoopRunning = false
+    end
     
     LoopManager:AddFrame("FlingAll", function()
-        if not flingAllActive then
-            LoopManager:RemoveFrame("FlingAll")
+        if not flingAllActive or not flingAllCurrentTarget then
+            if flingAllLoopRunning then
+                LoopManager:RemoveFrame("FlingAll")
+                flingAllLoopRunning = false
+            end
             return
         end
         
-        if not flingAllCurrentTarget or not flingAllCurrentTarget.Character then
+        if tick() > flingTimeout then
             processarProximoAlvo()
             return
         end
         
         local currentTargetChar = flingAllCurrentTarget.Character
+        if not currentTargetChar then
+            processarProximoAlvo()
+            return
+        end
+        
         local targetHRP = GetHRP(currentTargetChar)
         local myHRP = GetHRP()
         
@@ -2494,6 +2473,12 @@ local function flingarJogador(alvo)
         
         local humanoid = GetHumanoid(currentTargetChar)
         if not humanoid or humanoid.Health <= 0 then
+            processarProximoAlvo()
+            return
+        end
+        
+        local distanciaAtual = (targetHRP.Position - posicaoInicial).Magnitude
+        if distanciaAtual > 300 then
             processarProximoAlvo()
             return
         end
@@ -2525,6 +2510,7 @@ local function flingarJogador(alvo)
             math.random(-500, 500)
         )
     end)
+    flingAllLoopRunning = true
     
     local function onTargetDied()
         if flingAllActive then
@@ -2533,41 +2519,41 @@ local function flingarJogador(alvo)
         end
     end
     
-    local function onTargetMoved()
-        if not flingAllActive or not flingAllCurrentTarget then
-            return
-        end
-        
-        local currentChar = flingAllCurrentTarget.Character
-        if not currentChar then
-            processarProximoAlvo()
-            return
-        end
-        
-        local currentHRP = GetHRP(currentChar)
-        if not currentHRP then
-            return
-        end
-        
-        local distancia = (currentHRP.Position - posicaoInicial).Magnitude
-        
-        if distancia > 300 then
-            processarProximoAlvo()
-        end
+    if flingAllConnection then
+        pcall(function() flingAllConnection:Disconnect() end)
+    end
+    flingAllConnection = humanoid.Died:Connect(onTargetDied)
+    
+    return true
+end
+
+local function processarProximoAlvo()
+    if not flingAllActive then
+        return
+    end
+    
+    if flingAllLoopRunning then
+        LoopManager:RemoveFrame("FlingAll")
+        flingAllLoopRunning = false
     end
     
     if flingAllConnection then
-        flingAllConnection:Disconnect()
+        pcall(function() flingAllConnection:Disconnect() end)
+        flingAllConnection = nil
     end
-    
     if flingAllCheckConnection then
-        flingAllCheckConnection:Disconnect()
+        pcall(function() flingAllCheckConnection:Disconnect() end)
+        flingAllCheckConnection = nil
     end
     
-    flingAllConnection = humanoid.Died:Connect(onTargetDied)
-    flingAllCheckConnection = RunService.Heartbeat:Connect(onTargetMoved)
+    if #flingAllQueue == 0 then
+        pararFlingAll()
+        Notify("Todos os jogadores foram lançados!", "success")
+        return
+    end
     
-    return true
+    local proximo = table.remove(flingAllQueue, 1)
+    flingarJogador(proximo)
 end
 
 MM2Tab:Button({
@@ -2591,7 +2577,6 @@ MM2Tab:Button({
         end
         
         local myPos = myHRP.Position
-        
         flingAllQueue = {}
         
         for _, plr in pairs(Players:GetPlayers()) do
@@ -2601,7 +2586,7 @@ MM2Tab:Button({
                     local hrp = GetHRP(char)
                     if hrp then
                         local distancia = (hrp.Position - myPos).Magnitude
-                        if distancia <= 300 then
+                        if distancia <= 200 then
                             table.insert(flingAllQueue, plr)
                         end
                     end
@@ -2615,7 +2600,7 @@ MM2Tab:Button({
         end
         
         flingAllActive = true
-        
+        Notify("Lançando " .. #flingAllQueue .. " jogadores...", "info")
         processarProximoAlvo()
     end
 })
@@ -2680,35 +2665,89 @@ end))
 
 MM2Tab:Section({Title = "Utilidades"})
 
-local function pegarArma()
+local autoPickupActive = false
+local autoPickupTeleporting = false
+
+local function pegarArmaNoChao()
     local myChar = GetChar()
-    if not myChar then return end
+    if not myChar then return false end
+    
+    local myHRP = GetHRP(myChar)
+    if not myHRP then return false end
     
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Tool") then
             local nome = obj.Name:lower()
             if nome:find("gun") or nome:find("pistol") or nome:find("revolver") then
-                if obj.Parent ~= myChar then
-                    obj.Parent = myChar
-                    Notify("Arma pegada!", "success")
+                local parent = obj.Parent
+                local isHeld = false
+                
+                if parent and parent:IsA("Model") and parent:FindFirstChild("Humanoid") then
+                    local humanoid = parent:FindFirstChild("Humanoid")
+                    if humanoid and humanoid.Health > 0 then
+                        isHeld = true  
+                    end
                 end
-                return
+                
+                if not isHeld and parent ~= myChar then
+                    local armaPos = obj:IsA("BasePart") and obj.Position or 
+                                   (obj:FindFirstChild("Handle") and obj.Handle.Position) or
+                                   (obj:FindFirstChild("Gun") and obj.Gun.Position)
+                    
+                    if armaPos then
+                        return obj, armaPos
+                    end
+                end
             end
         end
     end
+    return nil
+end
+
+local function teleportarParaArmaEVoltar()
+    if autoPickupTeleporting then return end
+    
+    local myChar = GetChar()
+    local myHRP = GetHRP(myChar)
+    if not myChar or not myHRP then return end
+    
+    local arma, armaPos = pegarArmaNoChao()
+    if not arma or not armaPos then return end
+    
+    autoPickupTeleporting = true
+    
+    local posOriginal = myHRP.CFrame
+    
+    myHRP.CFrame = CFrame.new(armaPos + Vector3.new(0, 3, 0))
+    task.wait(0.1)
+    
+    local success = pcall(function()
+        arma.Parent = myChar
+    end)
+    
+    if success then
+        Notify("Arma pegada!", "success")
+    end
+    
+    task.wait(0.1)
+    
+    myHRP.CFrame = posOriginal
+    
+    task.wait(0.3)
+    autoPickupTeleporting = false
 end
 
 MM2Tab:Toggle({
-    Title = "Auto Pickup Gun",
+    Title = "Auto Pegar Pistola (Chão)",
     Default = false,
     Callback = function(Value)
         autoPickupActive = Value
         if Value then
             LoopManager:AddThrottled("AutoPickup", function()
-                if autoPickupActive then
-                    pegarArma()
+                if autoPickupActive and not autoPickupTeleporting then
+                    teleportarParaArmaEVoltar()
                 end
-            end, 0.5)
+            end, 1.5) 
         else
             LoopManager:RemoveThrottled("AutoPickup")
         end
