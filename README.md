@@ -275,9 +275,8 @@ local ANIMATION_PACKS = {
     Popstar = { Idle1 = "1212900985", Idle2 = "1212900995", Walk = "1212980348", Run = "1212980338", Jump = "1212954642", Fall = "1212900995", Climb = "1213044953", Swim = "1213028260", SwimIdle = "1213028407" },
     Princess = { Idle1 = "941003647", Idle2 = "941013098", Walk = "941028902", Run = "941015281", Jump = "941008832", Fall = "941000007", Climb = "940996062", Swim = "941018893", SwimIdle = "941025398" },
 	Fashionable = { Idle1 = "1243872664", Idle2 = "1243874093", Walk = "1243902226", Run = "1243892970", Jump = "1243880869", Fall = "1243876816", Climb = "1243878951", Swim = "1243893288", SwimIdle = "1243893659" },
-	Cutesy = { Idle1 = "10921117521", Idle2 = "10921119966", Walk = "10921122459", Run = "10921121197", Jump = "10921122135", Fall = "10921121519", Climb = "10921123521", Swim = "10921124822", SwimIdle = "10921126038" },
-	Bold = { Idle1 = "16738333868", Idle2 = "16738334710", Walk = "16738335850", Run = "16738336818", Jump = "16738337942", Fall = "16738339008", Climb = "16738340216", Swim = "16738341510", SwimIdle = "16738342679" },
-	Glitch = { Idle1 = "16738344524", Idle2 = "16738345344", Walk = "16738346225", Run = "16738347097", Jump = "16738347980", Fall = "16738348824", Climb = "16738349687", Swim = "16738350561", SwimIdle = "16738351452" }
+	Cutesy = { Idle1 = "10921117521", Idle2 = "10921119966", Walk = "10921122459", Run = "10921123521", Jump = "10921121197", Fall = "10921122135", Climb = "10921124822", Swim = "10921126038", SwimIdle = "10921127184" },
+    Bold = { Idle1 = "16738333868", Idle2 = "16738334710", Walk = "16738335850", Run = "16738336818", Jump = "16738337942", Fall = "16738339008", Climb = "16738340216", Swim = "16738341510", SwimIdle = "16738342679" }
 }
 
 local famousEmotes = {
@@ -298,9 +297,9 @@ local famousEmotes = {
     {name = "Hero Landing", id = "5104374556"},
     {name = "Celebrate", id = "3994130516"},
     {name = "Shuffle Dance", id = "616110314"},
-    {name = "Spin Dance", id = "616109997"},
-    {name = "Stylish Dance", id = "616111295"},
-    {name = "Cool Dance", id = "616115533"}
+    {name = "Spin Dance", id = "11985153574"},
+    {name = "Stylish Dance", id = "8907590644"},
+    {name = "Cool Dance", id = "8258889918"}
 }
 
 local currentEmoteTrack = nil
@@ -349,8 +348,6 @@ local function aplicarPack(pack)
     set(animate:FindFirstChild("climb"), pack.Climb)
     set(animate:FindFirstChild("swim"), pack.Swim)
     
-    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    task.wait(0.1)
     humanoid:ChangeState(Enum.HumanoidStateType.Running)
 end
 
@@ -358,7 +355,7 @@ local function playEmote(id, speed)
     local char = player.Character or player.CharacterAdded:Wait()
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
-    
+
     if currentEmoteTrack then
         pcall(function()
             currentEmoteTrack:Stop()
@@ -366,54 +363,39 @@ local function playEmote(id, speed)
         end)
         currentEmoteTrack = nil
     end
-    
+
     local animator = humanoid:FindFirstChild("Animator")
-    if animator then
-        local tracksToRemove = {}
-        for _, child in pairs(animator:GetChildren()) do
-            if child:IsA("AnimationTrack") then
-                table.insert(tracksToRemove, child)
-            end
-        end
-        
-        if #tracksToRemove > 50 then
-            for i = 1, #tracksToRemove - 40 do
-                pcall(function() tracksToRemove[i]:Destroy() end)
-            end
-        end
-    end
-    
     if not animator then
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
-    
+
     local success = pcall(function()
         humanoid:PlayEmote(tostring(id))
     end)
-    
+
     if success then
-        print("✅ Emote oficial: " .. id)
+        print(" Emote oficial: " .. id)
         return
     end
-    
+
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://" .. tostring(id)
-    
+
     local track = animator:LoadAnimation(anim)
     if track then
-        track.Priority = Enum.AnimationPriority.Action
-        track.Looped = true
+        track.Priority = Enum.AnimationPriority.Action4  
+        track.Looped = false  
         track:Play()
-        
+
         if speed and speed ~= 1 then
             track:AdjustSpeed(speed)
         end
-        
+
         currentEmoteTrack = track
-        print("✅ Animation: " .. id)
+        print(" Animation carregada: " .. id)
     else
-        warn("❌ Falhou: " .. id)
+        warn(" Falhou: " .. id)
         Notify("Emote não encontrado!", "error")
     end
 end
@@ -564,7 +546,7 @@ local function pararESPHighlight()
     limparESPHighlight()
 end
 
--- ================================ ESP ARMA (OTIMIZADO) ================================
+-- ================================ ESP ARMA ================================
 
 local espArmaActive = false
 
@@ -576,8 +558,6 @@ local function criarESPArmas()
     local myPos = myHRP.Position
     
     for _, obj in pairs(workspace:GetDescendants()) do
-        local isGun = false
-        local nome = obj.Name:lower()
         local objPos = nil
         
         if obj:IsA("BasePart") then
@@ -591,53 +571,13 @@ local function criarESPArmas()
         if not objPos then continue end
         
         local distancia = (objPos - myPos).Magnitude
-        if distancia > 300 then continue end  
+        if distancia > 300 then continue end
         
-        if obj:IsA("Tool") then
-            if nome:find("gun") or nome:find("pistol") or nome:find("revolver") then
-                isGun = true
-            end
-        end
-        
-        if not isGun and (obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("Part")) then
-            local hasGreenEffect = false
-            for _, child in pairs(obj:GetChildren()) do
-                if child:IsA("ParticleEmitter") and child.Enabled then
-                    hasGreenEffect = true
-                end
-                if child:IsA("Highlight") and child.FillColor == Color3.fromRGB(0, 255, 0) then
-                    hasGreenEffect = true
-                end
-            end
-            
-            if nome:find("gun") or nome:find("pistol") or nome:find("revolver") or nome:find("weapon") then
-                isGun = true
-            end
-            
-            if hasGreenEffect then
-                isGun = true
-            end
-        end
-        
-        if not isGun and obj:FindFirstChild("Handle") then
-            local handleName = obj.Handle.Name:lower()
-            if handleName:find("gun") or handleName:find("pistol") or handleName:find("revolver") then
-                isGun = true
-            end
-        end
-        
-        if isGun then
+        if obj:IsA("Tool") and (obj.Name == "Gun" or obj.Name == "Pistol" or obj.Name == "Revolver") then
             local parent = obj.Parent
-            local isHeld = false
+            local isHeld = parent and parent:IsA("Model") and parent:FindFirstChild("Humanoid")
             
-            if parent and parent:IsA("Model") and parent:FindFirstChild("Humanoid") then
-                local humanoid = parent:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    isHeld = true
-                end
-            end
-            
-            if not isHeld and parent ~= player.Character then
+            if (not isHeld) or (isHeld and parent ~= player.Character) then
                 if not obj:FindFirstChild("ESPArmaHighlight") then
                     local highlight = Instance.new("Highlight")
                     highlight.Name = "ESPArmaHighlight"
@@ -1568,7 +1508,7 @@ end
 
 EventManager:Add("CharacterAdded", player.CharacterAdded:Connect(function(char)
     task.wait(0.5)
-    
+
     local humanoid = GetHumanoid(char)
     if humanoid then
         local animator = humanoid:FindFirstChild("Animator")
@@ -1578,15 +1518,21 @@ EventManager:Add("CharacterAdded", player.CharacterAdded:Connect(function(char)
             end
         end
     end
-    
+
+    if ESPHighlightEnabled or ESPMM2HighlightEnabled then
+        pararESPHighlight()
+        task.wait(0.1)
+        iniciarESPHighlight()
+    end
+
     if flying then
         startFly()
     end
-    
+
     if headlessActive or korbloxActive then
         updateVisuals()
     end
-    
+
     if selectedAnimationPack then
         aplicarPack(ANIMATION_PACKS[selectedAnimationPack])
     end
@@ -2188,50 +2134,56 @@ OnlinesTab:Button({
         posicaoOriginal = myHRP.CFrame
         
         LoopManager:AddFrame("FlingOP", function()
-            if not flingOPActive then
-                LoopManager:RemoveFrame("FlingOP")
-                return
-            end
-            
-            if not selectedPlayer or not selectedPlayer.Character then
-                stopAll()
-                return
-            end
-            
-            local myHRP = GetHRP()
-            local targetHRP = GetHRP(selectedPlayer.Character)
-            
-            if not myHRP or not targetHRP then
-                return
-            end
-            
-            myHRP.RotVelocity = Vector3.new(
-                math.random(8000, 9000),
-                math.random(8000, 9000),
-                math.random(8000, 9000)
-            )
-            
-            local randomAngle = CFrame.Angles(
-                math.rad(math.random(-360, 360)),
-                math.rad(math.random(-360, 360)),
-                math.rad(math.random(-360, 360))
-            )
-            
-            local yOffset = math.random(-6, 6)
-            
-            myHRP.CFrame = targetHRP.CFrame *
-                CFrame.new(
-                    math.random(-1, 1),
-                    yOffset,
-                    math.random(-1, 1)
-                ) * randomAngle
-            
-            myHRP.Velocity = Vector3.new(
-                math.random(-500, 500),
-                math.random(400, 900),
-                math.random(-500, 500)
-            )
-        end)
+		    if not flingOPActive then
+		        LoopManager:RemoveFrame("FlingOP")
+		        return
+		    end
+		
+		    if not selectedPlayer or not selectedPlayer.Character then
+		        stopAll()
+		        return
+		    end
+		
+		    local myHRP = GetHRP()
+		    local targetHRP = GetHRP(selectedPlayer.Character)
+		
+		    if not myHRP or not targetHRP then
+		        return
+		    end
+		
+		    myHRP.AssemblyLinearVelocity = Vector3.new(
+		        math.random(-500, 500),
+		        math.random(400, 900),
+		        math.random(-500, 500)
+		    )
+		
+		    myHRP.AssemblyAngularVelocity = Vector3.new(
+		        math.random(-30, 30),
+		        math.random(-30, 30),
+		        math.random(-30, 30)
+		    )
+		
+		    local randomAngle = CFrame.Angles(
+		        math.rad(math.random(-360, 360)),
+		        math.rad(math.random(-360, 360)),
+		        math.rad(math.random(-360, 360))
+		    )
+		
+		    local yOffset = math.random(-6, 6)
+		
+		    myHRP.CFrame = targetHRP.CFrame *
+		        CFrame.new(
+		            math.random(-1, 1),
+		            yOffset,
+		            math.random(-1, 1)
+		        ) * randomAngle
+		
+		    targetHRP.AssemblyLinearVelocity = Vector3.new(
+		        math.random(-200, 200),
+		        math.random(300, 600),
+		        math.random(-200, 200)
+		    )
+		end)
     end
 })
 
@@ -2448,32 +2400,38 @@ MM2Tab:Button({
                 return
             end
             
-            myHRP.RotVelocity = Vector3.new(
-                math.random(8000, 9000),
-                math.random(8000, 9000),
-                math.random(8000, 9000)
-            )
-            
-            local randomAngle = CFrame.Angles(
-                math.rad(math.random(-360, 360)),
-                math.rad(math.random(-360, 360)),
-                math.rad(math.random(-360, 360))
-            )
-            
-            local yOffset = math.random(-6, 6)
-            
-            myHRP.CFrame = targetHRP.CFrame *
-                CFrame.new(
-                    math.random(-1, 1),
-                    yOffset,
-                    math.random(-1, 1)
-                ) * randomAngle
-            
-            myHRP.Velocity = Vector3.new(
-                math.random(-500, 500),
-                math.random(400, 900),
-                math.random(-500, 500)
-            )
+            myHRP.AssemblyLinearVelocity = Vector3.new(
+		        math.random(-500, 500),
+		        math.random(400, 900),
+		        math.random(-500, 500)
+		    )
+		
+		    myHRP.AssemblyAngularVelocity = Vector3.new(
+		        math.random(-30, 30),
+		        math.random(-30, 30),
+		        math.random(-30, 30)
+		    )
+		
+		    local randomAngle = CFrame.Angles(
+		        math.rad(math.random(-360, 360)),
+		        math.rad(math.random(-360, 360)),
+		        math.rad(math.random(-360, 360))
+		    )
+		
+		    local yOffset = math.random(-6, 6)
+		
+		    myHRP.CFrame = targetHRP.CFrame *
+		        CFrame.new(
+		            math.random(-1, 1),
+		            yOffset,
+		            math.random(-1, 1)
+		        ) * randomAngle
+		
+		    targetHRP.AssemblyLinearVelocity = Vector3.new(
+		        math.random(-200, 200),
+		        math.random(300, 600),
+		        math.random(-200, 200)
+		    )
         end)
     end
 })
@@ -2538,32 +2496,38 @@ MM2Tab:Button({
                 return
             end
             
-            myHRP.RotVelocity = Vector3.new(
-                math.random(8000, 9000),
-                math.random(8000, 9000),
-                math.random(8000, 9000)
-            )
-            
-            local randomAngle = CFrame.Angles(
-                math.rad(math.random(-360, 360)),
-                math.rad(math.random(-360, 360)),
-                math.rad(math.random(-360, 360))
-            )
-            
-            local yOffset = math.random(-6, 6)
-            
-            myHRP.CFrame = targetHRP.CFrame *
-                CFrame.new(
-                    math.random(-1, 1),
-                    yOffset,
-                    math.random(-1, 1)
-                ) * randomAngle
-            
-            myHRP.Velocity = Vector3.new(
-                math.random(-500, 500),
-                math.random(400, 900),
-                math.random(-500, 500)
-            )
+            myHRP.AssemblyLinearVelocity = Vector3.new(
+		        math.random(-500, 500),
+		        math.random(400, 900),
+		        math.random(-500, 500)
+		    )
+		
+		    myHRP.AssemblyAngularVelocity = Vector3.new(
+		        math.random(-30, 30),
+		        math.random(-30, 30),
+		        math.random(-30, 30)
+		    )
+		
+		    local randomAngle = CFrame.Angles(
+		        math.rad(math.random(-360, 360)),
+		        math.rad(math.random(-360, 360)),
+		        math.rad(math.random(-360, 360))
+		    )
+		
+		    local yOffset = math.random(-6, 6)
+		
+		    myHRP.CFrame = targetHRP.CFrame *
+		        CFrame.new(
+		            math.random(-1, 1),
+		            yOffset,
+		            math.random(-1, 1)
+		        ) * randomAngle
+		
+		    targetHRP.AssemblyLinearVelocity = Vector3.new(
+		        math.random(-200, 200),
+		        math.random(300, 600),
+		        math.random(-200, 200)
+		    )
         end)
     end
 })
@@ -2668,32 +2632,38 @@ local function flingarJogador(alvo)
             return
         end
         
-        myHRP.RotVelocity = Vector3.new(
-            math.random(8000, 9000),
-            math.random(8000, 9000),
-            math.random(8000, 9000)
-        )
-        
-        local randomAngle = CFrame.Angles(
-            math.rad(math.random(-360, 360)),
-            math.rad(math.random(-360, 360)),
-            math.rad(math.random(-360, 360))
-        )
-        
-        local yOffset = math.random(-6, 6)
-        
-        myHRP.CFrame = targetHRP.CFrame *
-            CFrame.new(
-                math.random(-1, 1),
-                yOffset,
-                math.random(-1, 1)
-            ) * randomAngle
-        
-        myHRP.Velocity = Vector3.new(
-            math.random(-500, 500),
-            math.random(400, 900),
-            math.random(-500, 500)
-        )
+        myHRP.AssemblyLinearVelocity = Vector3.new(
+	        math.random(-500, 500),
+	        math.random(400, 900),
+	        math.random(-500, 500)
+	    )
+	
+	    myHRP.AssemblyAngularVelocity = Vector3.new(
+	        math.random(-30, 30),
+	        math.random(-30, 30),
+	        math.random(-30, 30)
+	    )
+	
+	    local randomAngle = CFrame.Angles(
+	        math.rad(math.random(-360, 360)),
+	        math.rad(math.random(-360, 360)),
+	        math.rad(math.random(-360, 360))
+	    )
+	
+	    local yOffset = math.random(-6, 6)
+	
+	    myHRP.CFrame = targetHRP.CFrame *
+	        CFrame.new(
+	            math.random(-1, 1),
+	            yOffset,
+	            math.random(-1, 1)
+	        ) * randomAngle
+	
+	    targetHRP.AssemblyLinearVelocity = Vector3.new(
+	        math.random(-200, 200),
+	        math.random(300, 600),
+	        math.random(-200, 200)
+	    )
     end)
     flingAllLoopRunning = true
     
@@ -2852,104 +2822,17 @@ MM2Tab:Section({Title = "Utilidades"})
 
 local autoPickupActive = false
 local autoPickupTeleporting = false
+local autoPickupConnection = nil
 
 local function encontrarArmaNoChao()
-    local myChar = GetChar()
-    if not myChar then return nil end
-    
-    local myHRP = GetHRP(myChar)
-    if not myHRP then return nil, nil end
-    
-    local myPos = myHRP.Position
-    local armaMaisProxima = nil
-    local menorDistancia = 300  
-    
     for _, obj in pairs(workspace:GetDescendants()) do
-        local isGun = false
-        local armaPos = nil
-        local nome = obj.Name:lower()
-        
-        if obj:IsA("BasePart") then
-            armaPos = obj.Position
-        elseif obj:FindFirstChild("Handle") and obj.Handle:IsA("BasePart") then
-            armaPos = obj.Handle.Position
-        elseif obj:IsA("Model") and obj.PrimaryPart then
-            armaPos = obj.PrimaryPart.Position
-        end
-        
-        if not armaPos then continue end
-        
-        local distancia = (armaPos - myPos).Magnitude
-        if distancia > 300 then continue end 
-        
-        if obj:IsA("Tool") then
-            if nome:find("gun") or nome:find("pistol") or nome:find("revolver") then
-                isGun = true
-            end
-        end
-        
-        if not isGun and (obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("Part")) then
-            local hasGreenEffect = false
-            for _, child in pairs(obj:GetChildren()) do
-                if child:IsA("ParticleEmitter") and child.Enabled then
-                    hasGreenEffect = true
-                end
-                if child:IsA("Highlight") and child.FillColor == Color3.fromRGB(0, 255, 0) then
-                    hasGreenEffect = true
-                end
-            end
-            
-            if nome:find("gun") or nome:find("pistol") or nome:find("revolver") or nome:find("weapon") then
-                isGun = true
-            end
-            
-            if hasGreenEffect then
-                isGun = true
-            end
-        end
-        
-        if not isGun and obj:FindFirstChild("Handle") then
-            local handleName = obj.Handle.Name:lower()
-            if handleName:find("gun") or handleName:find("pistol") or handleName:find("revolver") then
-                isGun = true
-                armaPos = obj.Handle.Position
-            end
-        end
-        
-        if isGun and armaPos then
-            local parent = obj.Parent
-            local isHeld = false
-            
-            if parent and parent:IsA("Model") and parent:FindFirstChild("Humanoid") then
-                local humanoid = parent:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    isHeld = true
-                end
-            end
-            
-            if not isHeld and parent ~= myChar then
-                if armaPos.Y < 30 or (parent and parent.Name == "Workspace") then
-                    if distancia < menorDistancia then
-                        menorDistancia = distancia
-                        armaMaisProxima = obj
-                    end
-                end
+        if obj:IsA("Tool") and obj.Name == "GunDrop" then
+            local handle = obj:FindFirstChild("Handle")
+            if handle and handle:IsA("BasePart") then
+                return obj, handle.Position
             end
         end
     end
-    
-    if armaMaisProxima then
-        local posFinal = nil
-        if armaMaisProxima:IsA("BasePart") then
-            posFinal = armaMaisProxima.Position
-        elseif armaMaisProxima:FindFirstChild("Handle") then
-            posFinal = armaMaisProxima.Handle.Position
-        elseif armaMaisProxima.PrimaryPart then
-            posFinal = armaMaisProxima.PrimaryPart.Position
-        end
-        return armaMaisProxima, posFinal
-    end
-    
     return nil, nil
 end
 
@@ -2966,20 +2849,20 @@ local function teleportarParaArmaEVoltar()
     autoPickupTeleporting = true
     
     local posOriginal = myHRP.CFrame
+    
     myHRP.CFrame = CFrame.new(armaPos + Vector3.new(0, 3, 0))
     task.wait(0.15)
     
     local success = pcall(function()
-        if arma:IsA("Tool") then
-            arma.Parent = myChar
-        else
-            myHRP.CFrame = CFrame.new(armaPos + Vector3.new(0, 1, 0))
-            task.wait(0.1)
-            
-            for _, child in pairs(arma:GetChildren()) do
+        myHRP.CFrame = CFrame.new(armaPos + Vector3.new(0, 1, 0))
+        task.wait(0.1)
+        
+        local handle = arma:FindFirstChild("Handle")
+        if handle then
+            for _, child in pairs(handle:GetChildren()) do
                 if child:IsA("TouchInterest") or child:IsA("ClickDetector") then
-                    firetouchinterest(myHRP, child.Parent, 0)
-                    firetouchinterest(myHRP, child.Parent, 1)
+                    firetouchinterest(myHRP, handle, 0)
+                    firetouchinterest(myHRP, handle, 1)
                 end
             end
         end
@@ -2988,10 +2871,30 @@ local function teleportarParaArmaEVoltar()
     if success then
         Notify("Arma detectada!", "success")
     end
+    
     task.wait(0.2)
+    
     myHRP.CFrame = posOriginal
+    
     task.wait(0.5)
     autoPickupTeleporting = false
+end
+
+local function iniciarMonitoramentoArma()
+    if autoPickupConnection then
+        autoPickupConnection:Disconnect()
+        autoPickupConnection = nil
+    end
+    
+    autoPickupConnection = workspace.DescendantAdded:Connect(function(obj)
+        if not autoPickupActive then return end
+        if autoPickupTeleporting then return end
+        
+        if obj:IsA("Tool") and obj.Name == "GunDrop" then
+            task.wait(0.1)
+            teleportarParaArmaEVoltar()
+        end
+    end)
 end
 
 MM2Tab:Toggle({
@@ -2999,14 +2902,16 @@ MM2Tab:Toggle({
     Default = false,
     Callback = function(Value)
         autoPickupActive = Value
+        
         if Value then
-            LoopManager:AddThrottled("AutoPickup", function()
-                if autoPickupActive and not autoPickupTeleporting then
-                    teleportarParaArmaEVoltar()
-                end
-            end, 1.5)
+            iniciarMonitoramentoArma()
+            Notify("Auto Pickup ativado! Aguardando arma...", "success")
         else
-            LoopManager:RemoveThrottled("AutoPickup")
+            if autoPickupConnection then
+                autoPickupConnection:Disconnect()
+                autoPickupConnection = nil
+            end
+            Notify("Auto Pickup desativado", "info")
         end
     end
 })
@@ -3134,7 +3039,7 @@ AnimationsTab:Dropdown({
         "Werewolf", "Levitation", "AdidasCommunity", "AdidasSports", "Ghost",
         "Patrol", "SuperHero", "Sneaky", "Popstar", "Confident", 
         "Stylish", "Robot", "Bubbly", "Princess", "Fashionable",
-        "Cutesy", "Bold", "Glitch"
+        "Cutesy", "Bold"
     },
     Default = "Nenhum",
     Callback = function(Value)
