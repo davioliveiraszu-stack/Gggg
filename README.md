@@ -65,6 +65,69 @@ local function GetHumanoid(char)
     return char and char:FindFirstChild("Humanoid")
 end
 
+-- ================================ VARIÁVEIS GLOBAIS ================================
+
+local AimbotEnabled = false
+local LockCamEnabled = false
+local ShowFPSEnabled = false
+local FPSUnlocked = false
+local backpackActive = false
+local headsitActive = false
+local spectateActive = false
+local infJumpEnabled = false
+local flingOPActive = false
+local LockUIActive = false
+local AutoFarmEnabled = false
+local HideNameEnabled = false
+local SpeedToggleEnabled = false
+local FOVCamToggleEnabled = false
+local SpinbotEnabled = false
+local headlessActive = false
+local korbloxActive = false
+local flying = false
+local ESPHighlightEnabled = false
+local ESPMM2HighlightEnabled = false
+
+local SelectedAimPart = "Head"
+local AimbotFOV = 90
+local AimbotSmoothness = 5
+local SpeedValue = 16
+local FovCamValue = 70
+local FlySpeed = 50
+local lastPositionsCount = 0
+
+local lastPositions = {}
+local FOVCircle = nil
+local FOVCircleFrame = nil
+local selectedPlayer = nil
+local posicaoOriginal = nil
+local savedPosition = nil
+local lastPositionTP = nil
+local originalHead = nil
+local originalLeftLeg = nil
+local bodyVelocity = nil
+local bodyGyro = nil
+local playerDropdown = nil
+local selectedAnimationPack = nil
+
+local LockUI
+local MiraUI
+
+local killAssassinActive = false
+local killSheriffActive = false
+local killAssassinConnection = nil
+local killSheriffConnection = nil
+local killAssassinPos = nil
+local killSheriffPos = nil
+local flingAllActive = false
+local flingAllQueue = {}
+local flingAllCurrentTarget = nil
+local flingAllConnection = nil
+local flingAllCheckConnection = nil
+local autoPickupActive = false
+local autoPickupTeleporting = false
+local autoPickupConnection = nil
+
 -- ================================ GERENCIADOR DE EVENTOS ================================
 
 local EventManager = {
@@ -1396,69 +1459,6 @@ EventManager:Add("CharacterRemoving", player.CharacterRemoving:Connect(function(
         bodyGyro = nil
     end
 end))
-
--- ================================ VARIÁVEIS GLOBAIS ================================
-
-local AimbotEnabled = false
-local LockCamEnabled = false
-local ShowFPSEnabled = false
-local FPSUnlocked = false
-local backpackActive = false
-local headsitActive = false
-local spectateActive = false
-local infJumpEnabled = false
-local flingOPActive = false
-local LockUIActive = false
-local AutoFarmEnabled = false
-local HideNameEnabled = false
-local SpeedToggleEnabled = false
-local FOVCamToggleEnabled = false
-local SpinbotEnabled = false
-local headlessActive = false
-local korbloxActive = false
-local flying = false
-local ESPHighlightEnabled = false
-local ESPMM2HighlightEnabled = false
-
-local SelectedAimPart = "Head"
-local AimbotFOV = 90
-local AimbotSmoothness = 5
-local SpeedValue = 16
-local FovCamValue = 70
-local FlySpeed = 50
-local lastPositionsCount = 0
-
-local lastPositions = {}
-local FOVCircle = nil
-local FOVCircleFrame = nil
-local selectedPlayer = nil
-local posicaoOriginal = nil
-local savedPosition = nil
-local lastPositionTP = nil
-local originalHead = nil
-local originalLeftLeg = nil
-local bodyVelocity = nil
-local bodyGyro = nil
-local playerDropdown = nil
-local selectedAnimationPack = nil
-
-local LockUI
-local MiraUI
-
-local killAssassinActive = false
-local killSheriffActive = false
-local killAssassinConnection = nil
-local killSheriffConnection = nil
-local killAssassinPos = nil
-local killSheriffPos = nil
-local flingAllActive = false
-local flingAllQueue = {}
-local flingAllCurrentTarget = nil
-local flingAllConnection = nil
-local flingAllCheckConnection = nil
-local autoPickupActive = false
-local autoPickupTeleporting = false
-local autoPickupConnection = nil
 
 -- ================================ CRIAÇÃO DAS TABS ================================
 
