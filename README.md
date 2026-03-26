@@ -1,13 +1,37 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-                            
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+print("WindUI carregou?", WindUI ~= nil)  -- Deve printar "true"
+if not WindUI then
+    error("WindUI não carregou!")
+end
+
+-- ================================ DEBUG ================================
+print("✅ Script iniciado")
+
+local function testarFuncao(nome, func)
+    if type(func) == "function" then
+        print("✅ " .. nome .. " carregada com sucesso")
+    else
+        error("❌ ERRO: " .. nome .. " é " .. type(func) .. " - deveria ser function")
+    end
+end
+
+-- Testar funções críticas após carregar
+task.wait(0.1)
+testarFuncao("Notify", Notify)
+testarFuncao("GetChar", GetChar)
+testarFuncao("LoopManager.Add", LoopManager.Add)
+testarFuncao("EventManager.Add", EventManager.Add)
+print("✅ Debug completo - todas as funções OK")
+
+-- Se chegar aqui, o erro não é nas funções                            
 local Window = WindUI:CreateWindow({
     Title = "SCARLET HUB",
-    Author = "By Oliveira",
     Folder = "ScarletHub",
-    Size = UDim2.fromOffset(600, 450),
-    MinSize = Vector2.new(600, 450),
-    MaxSize = Vector2.new(600, 450),
-    Transparent = true,
+    Size = UDim2.fromOffset(600, 500),
+    MinSize = Vector2.new(600, 500),
+    MaxSize = Vector2.new(600, 500),
+    Transparent = false,
     Theme = "Dark",
     Resizable = true,
     SideBarWidth = 200,
@@ -64,69 +88,6 @@ local function GetHumanoid(char)
     char = char or GetChar()
     return char and char:FindFirstChild("Humanoid")
 end
-
--- ================================ VARIÁVEIS GLOBAIS ================================
-
-local AimbotEnabled = false
-local LockCamEnabled = false
-local ShowFPSEnabled = false
-local FPSUnlocked = false
-local backpackActive = false
-local headsitActive = false
-local spectateActive = false
-local infJumpEnabled = false
-local flingOPActive = false
-local LockUIActive = false
-local AutoFarmEnabled = false
-local HideNameEnabled = false
-local SpeedToggleEnabled = false
-local FOVCamToggleEnabled = false
-local SpinbotEnabled = false
-local headlessActive = false
-local korbloxActive = false
-local flying = false
-local ESPHighlightEnabled = false
-local ESPMM2HighlightEnabled = false
-
-local SelectedAimPart = "Head"
-local AimbotFOV = 90
-local AimbotSmoothness = 5
-local SpeedValue = 16
-local FovCamValue = 70
-local FlySpeed = 50
-local lastPositionsCount = 0
-
-local lastPositions = {}
-local FOVCircle = nil
-local FOVCircleFrame = nil
-local selectedPlayer = nil
-local posicaoOriginal = nil
-local savedPosition = nil
-local lastPositionTP = nil
-local originalHead = nil
-local originalLeftLeg = nil
-local bodyVelocity = nil
-local bodyGyro = nil
-local playerDropdown = nil
-local selectedAnimationPack = nil
-
-local LockUI
-local MiraUI
-
-local killAssassinActive = false
-local killSheriffActive = false
-local killAssassinConnection = nil
-local killSheriffConnection = nil
-local killAssassinPos = nil
-local killSheriffPos = nil
-local flingAllActive = false
-local flingAllQueue = {}
-local flingAllCurrentTarget = nil
-local flingAllConnection = nil
-local flingAllCheckConnection = nil
-local autoPickupActive = false
-local autoPickupTeleporting = false
-local autoPickupConnection = nil
 
 -- ================================ GERENCIADOR DE EVENTOS ================================
 
@@ -221,45 +182,91 @@ Players.PlayerRemoving:Connect(function()
     playerCacheDirty = true
 end)
 
--- ================================ CACHE DE PAPEL ================================
-
-local papelCache = {}
+-- ================================ FUNÇÃO DE PAPEL ================================
 
 local function getPapel(jogador)
-    if papelCache[jogador] then
-        return papelCache[jogador]
-    end
-    
     local char = jogador.Character
-    if not char then return "Inocente" end
-    
-    local papel = "Inocente"
-    if char:FindFirstChild("Knife") or char:FindFirstChild("FadeKnife") then
-        papel = "Assassino"
-    elseif char:FindFirstChild("Gun") or char:FindFirstChild("Pistol") or char:FindFirstChild("Revolver") then
-        papel = "Xerife"
-    elseif jogador.Backpack then
-        if jogador.Backpack:FindFirstChild("Knife") or jogador.Backpack:FindFirstChild("FadeKnife") then
-            papel = "Assassino"
-        elseif jogador.Backpack:FindFirstChild("Gun") or jogador.Backpack:FindFirstChild("Pistol") or jogador.Backpack:FindFirstChild("Revolver") then
-            papel = "Xerife"
-        end
+    if not char then return "Inocente"
+    if char:FindFirstChild("Knife") or char:FindFirstChild("FadeKnife") then return "Assassino"
+    if char:FindFirstChild("Gun") or char:FindFirstChild("Pistol") or char:FindFirstChild("Revolver") then return "Xerife"
+    if jogador.Backpack then
+        if jogador.Backpack:FindFirstChild("Knife") or jogador.Backpack:FindFirstChild("FadeKnife") then return "Assassino"
+        if jogador.Backpack:FindFirstChild("Gun") or jogador.Backpack:FindFirstChild("Pistol") or jogador.Backpack:FindFirstChild("Revolver") then return "Xerife"
     end
-    
-    papelCache[jogador] = papel
-    return papel
+    return "Inocente"
 end
 
-Players.PlayerAdded:Connect(function(plr)
-    papelCache[plr] = nil
-    plr.CharacterAdded:Connect(function()
-        papelCache[plr] = nil
-    end)
-end)
+-- ================================ VARIÁVEIS GLOBAIS ================================
 
-Players.PlayerRemoving:Connect(function(plr)
-    papelCache[plr] = nil
-end)
+local AimbotEnabled = false
+local LockCamEnabled = false
+local ShowFPSEnabled = false
+local FPSUnlocked = false
+local backpackActive = false
+local headsitActive = false
+local spectateActive = false
+local infJumpEnabled = false
+local flingOPActive = false
+local LockUIActive = false
+local AutoFarmEnabled = false
+local HideNameEnabled = false
+local SpeedToggleEnabled = false
+local FOVCamToggleEnabled = false
+local SpinbotEnabled = false
+local headlessActive = false
+local korbloxActive = false
+local flying = false
+local ESPHighlightEnabled = false
+local ESPMM2HighlightEnabled = false
+local AutoFarmNoClipActive = false
+local AutoFarmMoving = false
+local NoClipEnabled = false
+local killAssassinActive = false
+local killSheriffActive = false
+local flingAllActive = false
+local autoPickupActive = false
+local autoPickupTeleporting = false
+local flingAllLoopRunning = false
+
+local SelectedAimPart = "Head"
+local AimbotFOV = 90
+local AimbotSmoothness = 5
+local SpeedValue = 16
+local FovCamValue = 70
+local FlySpeed = 50
+local lastPositionsCount = 0
+local emoteSpeed = 1
+local lastESPUpdate = 0
+
+local lastPositions = {}
+local ESPHighlights = {}
+local flingAllQueue = {}
+
+local FOVCircle = nil
+local FOVCircleFrame = nil
+local selectedPlayer = nil
+local posicaoOriginal = nil
+local savedPosition = nil
+local lastPositionTP = nil
+local originalHead = nil
+local originalLeftLeg = nil
+local bodyVelocity = nil
+local bodyGyro = nil
+local playerDropdown = nil
+local selectedAnimationPack = nil
+local currentEmoteTrack = nil
+local AutoFarmTween = nil
+local killAssassinConnection = nil
+local killSheriffConnection = nil
+local killAssassinPos = nil
+local killSheriffPos = nil
+local flingAllCurrentTarget = nil
+local flingAllConnection = nil
+local flingAllCheckConnection = nil
+local autoPickupConnection = nil
+
+local LockUI
+local MiraUI
 
 -- ================================ ANIMAÇÕES (COM IDs CORRIGIDOS) ================================
 
@@ -282,39 +289,32 @@ local ANIMATION_PACKS = {
     Knight = { Idle1 = "657595757", Idle2 = "657568135", Walk = "657552124", Run = "657564596", Jump = "658409194", Fall = "657600338", Climb = "658360781", Swim = "657560551", SwimIdle = "657557095" },
     Cartoony = { Idle1 = "742637544", Idle2 = "742638445", Walk = "742640026", Run = "742638842", Jump = "742637942", Fall = "742637151", Climb = "742636889", Swim = "742639220", SwimIdle = "742639812" },
     SuperHero = { Idle1 = "616111295", Idle2 = "616113536", Walk = "616122287", Run = "616117076", Jump = "616115533", Fall = "616114533", Climb = "616104706", Swim = "616119360", SwimIdle = "616120861" },
-    Bubbly = { Idle1 = "910004836", Idle2 = "910009958", Walk = "910034870", Run = "910025107", Jump = "910016857", Fall = "910001910", Climb = "909998997", Swim = "910028158", SwimIdle = "910030921" },
+    Bubbly = { Idle1 = "910004836", Idle2 = "910009958", Walk = "910034870", Run = "910025107", Jump = "910016857", Fall = "910001910", Climb = "910001910", Swim = "910028158", SwimIdle = "910030921" },
     Robot = { Idle1 = "616088211", Idle2 = "616089559", Walk = "616095330", Run = "616091570", Jump = "616090535", Fall = "616087089", Climb = "616086039", Swim = "616092998", SwimIdle = "616094091" },
     Stylish = { Idle1 = "616136790", Idle2 = "616138447", Walk = "616146177", Run = "616140816", Jump = "616139451", Fall = "616134815", Climb = "616133594", Swim = "616143378", SwimIdle = "616144772" },
     Confident = { Idle1 = "1069977950", Idle2 = "1069987858", Walk = "1070017263", Run = "1070001516", Jump = "1069984524", Fall = "1069973677", Climb = "1069946257", Swim = "1070009914", SwimIdle = "1070012133" },
-    Popstar = { Idle1 = "1212900985", Idle2 = "1212900995", Walk = "1212980348", Run = "1212980338", Jump = "1212954642", Fall = "1212900995", Climb = "1213044953", Swim = "1213028260", SwimIdle = "1213028407" },
+    Popstar = { Idle1 = "1212900985", Idle2 = "1212900995", Walk = "1212980348", Run = "1212980338", Jump = "1212954642", Fall = "1212900995", Climb = "1213044953", Swim = "1213028291", SwimIdle = "1213028407" },
     Princess = { Idle1 = "941003647", Idle2 = "941013098", Walk = "941028902", Run = "941015281", Jump = "941008832", Fall = "941000007", Climb = "940996062", Swim = "941018893", SwimIdle = "941025398" }
 }
 
 local famousEmotes = {
-    {name = "Griddy", id = "8577453546"},
-    {name = "Get Sturdy", id = "10714388352"},
-    {name = "Dizzy Dance", id = "10714393247"},
-    {name = "Fast Hands", id = "10714388352"},
-    {name = "Side to Side", id = "3762641826"},
-    {name = "Rock Out", id = "5915780563"},
-    {name = "Victory Dance", id = "4890666464"},
-    {name = "Dance Moves", id = "507771019"},
-    {name = "Floss Dance", id = "5917459365"},
-    {name = "Break Dance", id = "5915712534"},
-    {name = "Monkey Dance", id = "4212496830"},
-    {name = "Zombie Dance", id = "4212499637"},
-    {name = "Cha Cha", id = "3696763549"},
-    {name = "Air Guitar", id = "3696761354"},
-    {name = "Hero Landing", id = "5104374556"},
-    {name = "Celebrate", id = "3994130516"},
-    {name = "Shuffle Dance", id = "616110314"},
-    {name = "Spin Dance", id = "616109997"},
-    {name = "Stylish Dance", id = "616111295"},
-    {name = "Cool Dance", id = "616115533"}
-}
-
-local currentEmoteTrack = nil
-local emoteSpeed = 1
+    {name = "Minhoca", id = "76212616246340"},
+    {name = "Peixe", id = "96081038851490"},
+    {name = "Dança Shin Chan", id = "118870795136468"},
+    {name = "Footwork Funk Brasileiro 2", id = "140219184038687"},
+    {name = "Dança da Aranha", id = "76993911030490"},
+    {name = "Homem Aranha", id = "88841065236214"},
+    {name = "Invisível", id = "126995783634131"},
+    {name = "Sentar", id = "86052354840008"},
+    {name = "67", id = "98895028985842"},
+    {name = "Passinho do Jamal", id = "83796130837213"},
+    {name = "Rocker Festa", id = "97500383729078"},
+    {name = "Kareen", id = "131703052643885"},
+    {name = "Popular", id = "94292758607678"},
+    {name = "Falso Morto MM2", id = "110770090804022"},
+    {name = "Cagar", id = "72007752012770"},
+    {name = "Dança Hype", id = "129200076968240"}
+}    
 
 local function aplicarPack(pack)
     if not pack then return end
@@ -363,7 +363,7 @@ local function playEmote(id, speed)
     end)
     
     if success then
-        print("✅ Emote oficial: " .. id)
+        print(" Emote oficial: " .. id)
         return
     end
     
@@ -373,7 +373,7 @@ local function playEmote(id, speed)
     local track = animator:LoadAnimation(anim)
     if track then
         track.Priority = Enum.AnimationPriority.Action4
-        track.Looped = false
+        track.Looped = true
         track:Play()
         
         if speed and speed ~= 1 then
@@ -381,9 +381,9 @@ local function playEmote(id, speed)
         end
         
         currentEmoteTrack = track
-        print("✅ Animation carregada: " .. id)
+        print(" Animation carregada: " .. id)
     else
-        warn("❌ Falhou: " .. id)
+        warn(" Falhou: " .. id)
         Notify("Emote não encontrado!", "error")
     end
 end
@@ -396,9 +396,6 @@ local function stopEmote()
 end
 
 -- ================================ ESP HIGHLIGHT ================================
-
-local ESPHighlights = {}
-local lastESPUpdate = 0
 
 local function limparESPHighlight()
     for player, data in pairs(ESPHighlights) do
@@ -420,18 +417,16 @@ local function atualizarESPHighlight()
     lastESPUpdate = tick()
     
     local myChar = GetChar()
-    local myHRP = myChar and GetHRP(myChar)
+    if not myChar then return end
+    local myHRP = GetHRP(myChar)
     if not myHRP then return end
-    
     local myPos = myHRP.Position
     
     for _, plr in pairs(Players:GetPlayers()) do
         if plr == player then continue end
         
         local char = plr.Character
-        local humanoid = char and GetHumanoid(char)
-        
-        if not char or not humanoid or humanoid.Health <= 0 then
+        if not char then
             if ESPHighlights[plr] then
                 pcall(function()
                     if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
@@ -439,75 +434,87 @@ local function atualizarESPHighlight()
                 end)
                 ESPHighlights[plr] = nil
             end
-            continue
-        end
-        
-        local root = GetHRP(char)
-        if not root then continue end
-        
-        local distancia = (root.Position - myPos).Magnitude
-        
-        if distancia > 300 then
-            if ESPHighlights[plr] then
-                pcall(function()
-                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                end)
-                ESPHighlights[plr] = nil
-            end
-            continue
-        end
-        
-        local cor = Color3.fromRGB(255, 255, 0)
-        
-        if ESPMM2HighlightEnabled then
-            local papel = getPapel(plr)
-            if papel == "Assassino" then
-                cor = Color3.fromRGB(255, 0, 0)
-            elseif papel == "Xerife" then
-                cor = Color3.fromRGB(0, 100, 255)
-            else
-                cor = Color3.fromRGB(0, 255, 0)
-            end
-        end
-        
-        if not ESPHighlights[plr] then
-            local highlight = Instance.new("Highlight")
-            highlight.Parent = char
-            highlight.FillTransparency = 0.7
-            highlight.OutlineTransparency = 0.3
-            highlight.FillColor = cor
-            highlight.OutlineColor = cor
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            
-            local billboard = Instance.new("BillboardGui")
-            billboard.Name = "ESPBillboard"
-            billboard.Parent = char:FindFirstChild("Head") or char
-            billboard.Size = UDim2.new(0, 100, 0, 30)
-            billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-            billboard.AlwaysOnTop = true
-            
-            local textLabel = Instance.new("TextLabel")
-            textLabel.Parent = billboard
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
-            textLabel.BackgroundTransparency = 1
-            textLabel.TextColor3 = cor
-            textLabel.TextStrokeTransparency = 0.5
-            textLabel.Font = Enum.Font.GothamBold
-            textLabel.TextSize = 10
-            textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
-            textLabel.TextScaled = true
-            
-            ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
         else
-            local data = ESPHighlights[plr]
-            if data.Highlight then
-                data.Highlight.FillColor = cor
-                data.Highlight.OutlineColor = cor
-            end
-            if data.TextLabel then
-                data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
-                data.TextLabel.TextColor3 = cor
+            local humanoid = GetHumanoid(char)
+            if not humanoid or humanoid.Health <= 0 then
+                if ESPHighlights[plr] then
+                    pcall(function()
+                        if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
+                        if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
+                    end)
+                    ESPHighlights[plr] = nil
+                end
+            else
+                local root = GetHRP(char)
+                if not root then
+                else
+                    local distancia = (root.Position - myPos).Magnitude
+                    if distancia > 300 then
+                        if ESPHighlights[plr] then
+                            pcall(function()
+                                if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
+                                if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
+                            end)
+                            ESPHighlights[plr] = nil
+                        end
+                    else
+                        local cor = Color3.fromRGB(255, 255, 255)
+                        if ESPMM2HighlightEnabled then
+                            local papel = getPapel(plr)
+                            if papel == "Assassino" then
+                                cor = Color3.fromRGB(255, 0, 0)
+                            elseif papel == "Xerife" then
+                                cor = Color3.fromRGB(0, 100, 255)
+                            else
+                                cor = Color3.fromRGB(0, 255, 0)
+                            end
+                        end
+                        
+                        if not ESPHighlights[plr] then
+                            if char and char.Parent then
+                                local highlight = Instance.new("Highlight")
+                                highlight.Parent = char
+                                highlight.FillTransparency = 0.7
+                                highlight.OutlineTransparency = 0.3
+                                highlight.FillColor = cor
+                                highlight.OutlineColor = cor
+                                
+                                local billboard = Instance.new("BillboardGui")
+                                billboard.Name = "ESPBillboard"
+                                local head = char:FindFirstChild("Head")
+                                if head then
+                                    billboard.Parent = head
+                                else
+                                    billboard.Parent = char
+                                end
+                                billboard.Size = UDim2.new(0, 100, 0, 30)
+                                billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                                billboard.AlwaysOnTop = true
+                                
+                                local textLabel = Instance.new("TextLabel")
+                                textLabel.Parent = billboard
+                                textLabel.Size = UDim2.new(1, 0, 1, 0)
+                                textLabel.BackgroundTransparency = 1
+                                textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                                textLabel.TextStrokeTransparency = 0.5
+                                textLabel.Font = Enum.Font.GothamBold
+                                textLabel.TextSize = 8
+                                textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+                                
+                                ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
+                            end
+                        else
+                            local data = ESPHighlights[plr]
+                            if data.Highlight then
+                                data.Highlight.FillColor = cor
+                                data.Highlight.OutlineColor = cor
+                            end
+                            if data.TextLabel then
+                                data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+                            end
+                        end
+                    end
+                end
             end
         end
     end
@@ -522,65 +529,7 @@ local function pararESPHighlight()
     limparESPHighlight()
 end
 
--- ================================ ESP ARMA (CORRIGIDO) ================================
-
-local espArmaActive = false
-
-local function criarESPArmas()
-    local myChar = GetChar()
-    local myHRP = myChar and GetHRP(myChar)
-    if not myHRP then return end
-    
-    local myPos = myHRP.Position
-    
-    for _, obj in pairs(workspace:GetDescendants()) do
-        local objPos = nil
-        
-        if obj:IsA("BasePart") then
-            objPos = obj.Position
-        elseif obj:FindFirstChild("Handle") and obj.Handle:IsA("BasePart") then
-            objPos = obj.Handle.Position
-        elseif obj:IsA("Model") and obj.PrimaryPart then
-            objPos = obj.PrimaryPart.Position
-        end
-        
-        if not objPos then continue end
-        
-        local distancia = (objPos - myPos).Magnitude
-        if distancia > 300 then continue end
-        
-        if obj:IsA("Tool") and (obj.Name == "Gun" or obj.Name == "Pistol" or obj.Name == "Revolver") then
-            local parent = obj.Parent
-            local isHeld = parent and parent:IsA("Model") and parent:FindFirstChild("Humanoid")
-            
-            if (not isHeld) or (isHeld and parent ~= player.Character) then
-                if not obj:FindFirstChild("ESPArmaHighlight") then
-                    local highlight = Instance.new("Highlight")
-                    highlight.Name = "ESPArmaHighlight"
-                    highlight.Parent = obj
-                    highlight.FillTransparency = 0.3
-                    highlight.OutlineTransparency = 0.2
-                    highlight.FillColor = Color3.fromRGB(255, 200, 0)
-                    highlight.OutlineColor = Color3.fromRGB(255, 100, 0)
-                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                end
-            end
-        end
-    end
-end
-
-local function removerESPArmas()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        local highlight = obj:FindFirstChild("ESPArmaHighlight")
-        if highlight then
-            highlight:Destroy()
-        end
-    end
-end
-
 -- ================================ OCULTAR NOME ================================
-
-local HideNameEnabled = false
 
 local function aplicarOcultarNome(char)
     if not char then return end
@@ -622,8 +571,6 @@ end
 
 -- ================================ NOCLIP ================================
 
-local NoClipEnabled = false
-
 local function NoClipTask()
     if not NoClipEnabled then return end
     
@@ -638,11 +585,6 @@ local function NoClipTask()
 end
 
 -- ================================ AUTOFARM ================================
-
-local AutoFarmEnabled = false
-local AutoFarmNoClipActive = false
-local AutoFarmMoving = false
-local AutoFarmTween = nil
 
 local function pararAutoFarmMovimento()
     if AutoFarmTween and AutoFarmTween.PlaybackState == Enum.PlaybackState.Playing then
@@ -1256,16 +1198,6 @@ end
 
 -- ================================ FUNÇÕES DE LISTA ================================
 
-local function getPlayerList()
-    local list = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player then
-            table.insert(list, p.Name)
-        end
-    end
-    return list
-end
-
 local function stopAll()
     if backpackActive then
         backpackActive = false
@@ -1292,6 +1224,8 @@ local function stopAll()
 	    
 	    local meuHRP = GetHRP()
 	    if meuHRP then
+		    meuHRP.RotVelocity = Vector3.new(0, 0, 0)
+		    meuHRP.Velocity = Vector3.new(0, 0, 0)
 		    meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 		    meuHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 		    
@@ -1428,22 +1362,12 @@ end
 -- ================================ EVENTOS CENTRALIZADOS ================================
 
 EventManager:Add("CharacterAdded", player.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-
-    if ESPHighlightEnabled or ESPMM2HighlightEnabled then
-        pararESPHighlight()
-        task.wait(0.1)
-        iniciarESPHighlight()
-    end
-    
     if flying then
         startFly()
     end
-    
     if headlessActive or korbloxActive then
         updateVisuals()
-    end
-    
+    end    
     if selectedAnimationPack then
         aplicarPack(ANIMATION_PACKS[selectedAnimationPack])
     end
@@ -1846,45 +1770,62 @@ OnlinesTab:Section({Title = "Jogadores"})
 
 local lastUpdate = 0
 
-local function updatePlayerDropdown()
-    if not playerDropdown then return end
-    if tick() - lastUpdate < 0.5 then return end
-    lastUpdate = tick()
-    
-    local newList = {}
+local function getPlayerList()
+    local list = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
-            table.insert(newList, p.Name)
+            table.insert(list, p.Name)
         end
     end
-    playerDropdown:Refresh(newList)
+    return list
 end
 
+local function updatePlayerDropdown()
+    if tick() - lastUpdate < 1 then return end
+    lastUpdate = tick()
+    if playerDropdown and playerDropdown.Refresh then
+        pcall(function()
+            local newList = getPlayerList()
+            if #newList > 0 then
+                playerDropdown:Refresh(newList)
+            end
+        end)
+    end
+end
+
+local listaInicial = getPlayerList()
 playerDropdown = OnlinesTab:Dropdown({
     Title = "Selecionar Jogador",
-    Values = getPlayerList(),
+    Values = #listaInicial > 0 and listaInicial or {"Ninguem"},
     Default = "Ninguem",
     Callback = function(name)
+        if name == "Ninguem" or not name then
+            selectedPlayer = nil
+            return
+        end
         for _, p in ipairs(Players:GetPlayers()) do
             if p.Name == name and p ~= player then
                 selectedPlayer = p
                 break
             end
         end
+        if not selectedPlayer then
+            Notify("Jogador não encontrado!", "error")
+        end
     end
 })
 
-EventManager:Add("PlayerAdded", Players.PlayerAdded:Connect(function()
+Players.PlayerAdded:Connect(function()
     updatePlayerDropdown()
-end))
+end)
 
-EventManager:Add("PlayerRemoving", Players.PlayerRemoving:Connect(function(p)
+Players.PlayerRemoving:Connect(function(p)
     if selectedPlayer == p then
         selectedPlayer = nil
         stopAll()
     end
     updatePlayerDropdown()
-end))
+end)
 
 OnlinesTab:Section({Title = "Ações"})
 
@@ -2074,6 +2015,12 @@ OnlinesTab:Button({
                 math.random(-30, 30)
             )
             
+            myHRP.RotVelocity = Vector3.new(
+                math.random(8000, 12000),
+                math.random(8000, 12000),
+                math.random(8000, 12000)
+            )
+            
             local randomAngle = CFrame.Angles(
                 math.rad(math.random(-360, 360)),
                 math.rad(math.random(-360, 360)),
@@ -2114,6 +2061,17 @@ OnlinesTab:Button({
 
 local MM2Tab = Window:Tab({Title = "Murder Mystery 2", Icon = "axe"})
 
+local function encontrarPorPapel(papelAlvo)
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then
+            if getPapel(plr) == papelAlvo then
+                return plr
+            end
+        end
+    end
+    return nil
+end
+
 MM2Tab:Section({Title = "Visuais"})
 
 MM2Tab:Toggle({
@@ -2136,42 +2094,10 @@ MM2Tab:Toggle({
     end
 })
 
-MM2Tab:Toggle({
-    Title = "ESP Arma",
-    Default = false,
-    Callback = function(Value)
-        espArmaActive = Value
-        if Value then
-            criarESPArmas()
-            LoopManager:Add("ESPArmas", function()
-                if espArmaActive then
-                    criarESPArmas()
-                else
-                    LoopManager:Remove("ESPArmas")
-                end
-            end)
-        else
-            LoopManager:Remove("ESPArmas")
-            removerESPArmas()
-        end
-    end
-})
-
-local function encontrarPorPapel(papelAlvo)
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            if getPapel(plr) == papelAlvo then
-                return plr
-            end
-        end
-    end
-    return nil
-end
-
 MM2Tab:Section({Title = "Combat"})
 
 MM2Tab:Button({
-    Title = "Matar Xerife",
+    Title = "Puxar Xerife",
     Callback = function()
         local xerife = encontrarPorPapel("Xerife")
         if xerife and xerife.Character then
@@ -2187,13 +2113,11 @@ MM2Tab:Button({
 })
 
 MM2Tab:Button({
-    Title = "Matar Todos",
+    Title = "Puxar Todos",
     Callback = function()
         local myHRP = GetHRP()
-        if not myHRP then return end
-        
-        local myPos = myHRP.Position
-        
+        if not myHRP then return end        
+        local myPos = myHRP.Position        
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player and plr.Character then
                 local targetHRP = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -2325,6 +2249,12 @@ MM2Tab:Button({
                 math.random(-30, 30)
             )
             
+            myHRP.RotVelocity = Vector3.new(
+                math.random(8000, 12000),
+                math.random(8000, 12000),
+                math.random(8000, 12000)
+            )
+            
             local randomAngle = CFrame.Angles(
                 math.rad(math.random(-360, 360)),
                 math.rad(math.random(-360, 360)),
@@ -2419,6 +2349,12 @@ MM2Tab:Button({
                 math.random(-30, 30),
                 math.random(-30, 30),
                 math.random(-30, 30)
+            )
+            
+            myHRP.RotVelocity = Vector3.new(
+                math.random(8000, 12000),
+                math.random(8000, 12000),
+                math.random(8000, 12000)
             )
             
             local randomAngle = CFrame.Angles(
@@ -2552,6 +2488,12 @@ local function flingarJogador(alvo)
             math.random(-30, 30)
         )
         
+        myHRP.RotVelocity = Vector3.new(
+            math.random(8000, 12000),
+            math.random(8000, 12000),
+            math.random(8000, 12000)
+        )
+            
         local randomAngle = CFrame.Angles(
             math.rad(math.random(-360, 360)),
             math.rad(math.random(-360, 360)),
@@ -2589,8 +2531,6 @@ local function flingarJogador(alvo)
     
     return true
 end
-
-local flingAllLoopRunning = false
 
 local function processarProximoAlvo()
     if not flingAllActive then
@@ -2774,10 +2714,6 @@ local function teleportarParaArmaEVoltar()
         end
     end)
     
-    if success then
-        Notify("Arma detectada!", "success")
-    end
-    
     task.wait(0.2)
     
     myHRP.CFrame = posOriginal
@@ -2811,13 +2747,11 @@ MM2Tab:Toggle({
         
         if Value then
             iniciarMonitoramentoArma()
-            Notify("Auto Pickup ativado! Aguardando arma...", "success")
         else
             if autoPickupConnection then
                 autoPickupConnection:Disconnect()
                 autoPickupConnection = nil
             end
-            Notify("Auto Pickup desativado", "info")
         end
     end
 })
@@ -2896,10 +2830,10 @@ AnimationsTab:Section({Title = "Emote Player"})
 AnimationsTab:Dropdown({
     Title = "Emotes",
     Values = {
-        "Griddy", "Get Sturdy", "Dizzy Dance", "Fast Hands", "Side to Side",
-        "Rock Out", "Victory Dance", "Dance Moves", "Floss Dance", "Break Dance",
-        "Monkey Dance", "Zombie Dance", "Cha Cha", "Air Guitar", "Hero Landing",
-        "Celebrate", "Shuffle Dance", "Spin Dance", "Stylish Dance", "Cool Dance"
+        "Minhoca", "Peixe", "Dança Shin Chan", "Footwork Funk Brasileiro 2",
+        "Dança da Aranha", "Homem Aranha", "Invisivel", "Sentar", "67",
+        "Passinho do Jamal", "Rocker Festa", "Kareen", "Popular",
+        "Falso Morto MM2", "Cagar", "Dança Hype"
     },
     Default = "Nenhum",
     Callback = function(Value)
