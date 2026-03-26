@@ -1,132 +1,12 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
--- ================================ DEBUG COMPLETO ================================
-print("═══════════════════════════════════════════════════════════")
-print("🔍 INICIANDO DEBUG DO SCARLET HUB")
-print("═══════════════════════════════════════════════════════════")
-
--- Verificar WindUI
-print("[1] Verificando WindUI...")
-if WindUI then
-    print("   ✅ WindUI carregado com sucesso!")
-    print("   📦 Tipo: " .. type(WindUI))
-else
-    error("   ❌ ERRO CRÍTICO: WindUI é nil! O hub não vai carregar!")
-end
-
--- Verificar Window
-print("[2] Verificando Window...")
-if Window then
-    print("   ✅ Window criada com sucesso!")
-else
-    error("   ❌ ERRO: Window é nil!")
-end
-
--- Verificar serviços
-print("[3] Verificando serviços...")
-local servicos = {"Players", "RunService", "TweenService", "UserInputService", "Lighting"}
-for _, servico in ipairs(servicos) do
-    if game:GetService(servico) then
-        print("   ✅ " .. servico .. " carregado")
-    else
-        print("   ❌ " .. servico .. " NÃO carregado!")
-    end
-end
-
--- Verificar funções auxiliares
-print("[4] Verificando funções auxiliares...")
-local funcoes = {"GetChar", "GetHRP", "GetHumanoid", "Notify", "EventManager", "LoopManager"}
-for _, func in ipairs(funcoes) do
-    if _G[func] or getfenv()[func] or rawget(_G, func) then
-        print("   ✅ " .. func .. " existe")
-    else
-        print("   ⚠️ " .. func .. " não encontrada globalmente")
-    end
-end
-
--- Verificar GetChar especificamente
-pcall(function()
-    local test = GetChar
-    if test then
-        print("   ✅ GetChar é uma função")
-    end
-end)
-
--- Verificar variáveis globais
-print("[5] Verificando variáveis principais...")
-local vars = {"AimbotEnabled", "ESPHighlightEnabled", "selectedPlayer", "playerDropdown", "currentEmoteTrack"}
-for _, var in ipairs(vars) do
-    if _G[var] ~= nil then
-        print("   ✅ " .. var .. " existe")
-    else
-        print("   ⚠️ " .. var .. " ainda não definida")
-    end
-end
-
--- Verificar ANIMATION_PACKS
-print("[6] Verificando ANIMATION_PACKS...")
-if ANIMATION_PACKS then
-    local count = 0
-    for k, v in pairs(ANIMATION_PACKS) do
-        count = count + 1
-    end
-    print("   ✅ ANIMATION_PACKS carregado com " .. count .. " packs")
-else
-    print("   ❌ ANIMATION_PACKS não encontrado!")
-end
-
--- Verificar famousEmotes
-print("[7] Verificando famousEmotes...")
-if famousEmotes then
-    print("   ✅ famousEmotes carregado com " .. #famousEmotes .. " emotes")
-else
-    print("   ❌ famousEmotes não encontrado!")
-end
-
--- Verificar LoopManager
-print("[8] Verificando LoopManager...")
-if LoopManager and LoopManager.Add then
-    print("   ✅ LoopManager.Add existe")
-else
-    print("   ❌ LoopManager não está funcionando!")
-end
-
--- Verificar EventManager
-print("[9] Verificando EventManager...")
-if EventManager and EventManager.Add then
-    print("   ✅ EventManager.Add existe")
-else
-    print("   ❌ EventManager não está funcionando!")
-end
-
--- Verificar criação das TABS
-print("[10] Aguardando criação das TABS...")
-task.wait(0.5)
-
--- Função para testar se a UI foi criada
-pcall(function()
-    local tabs = {"AimbotTab", "VisualsTab", "JogadorTab", "OnlinesTab", "MM2Tab", "GraphicsTab", "AnimationsTab", "TeleportTab"}
-    print("[11] Verificando TABS criadas...")
-    for _, tab in ipairs(tabs) do
-        if _G[tab] then
-            print("   ✅ " .. tab .. " criada")
-        else
-            print("   ⚠️ " .. tab .. " ainda não criada (normal se estiver depois)")
-        end
-    end
-end)
-
-print("═══════════════════════════════════════════════════════════")
-print("✅ DEBUG CONCLUÍDO - Verifique as mensagens acima")
-print("═══════════════════════════════════════════════════════════")
-
 local Window = WindUI:CreateWindow({
     Title = "SCARLET HUB",
     Folder = "ScarletHub",
     Size = UDim2.fromOffset(600, 500),
     MinSize = Vector2.new(600, 500),
     MaxSize = Vector2.new(600, 500),
-    Transparent = false,
+    Transparent = true,
     Theme = "Dark",
     Resizable = true,
     SideBarWidth = 200,
@@ -183,6 +63,70 @@ local function GetHumanoid(char)
     char = char or GetChar()
     return char and char:FindFirstChild("Humanoid")
 end
+
+-- ================================ VARIÁVEIS GLOBAIS ================================
+
+local AimbotEnabled = false
+local LockCamEnabled = false
+local ShowFPSEnabled = false
+local FPSUnlocked = false
+local backpackActive = false
+local headsitActive = false
+local spectateActive = false
+local infJumpEnabled = false
+local flingOPActive = false
+local LockUIActive = false
+local AutoFarmEnabled = false
+local HideNameEnabled = false
+local SpeedToggleEnabled = false
+local FOVCamToggleEnabled = false
+local SpinbotEnabled = false
+local headlessActive = false
+local korbloxActive = false
+local flying = false
+local ESPHighlightEnabled = false
+local ESPMM2HighlightEnabled = false
+
+local SelectedAimPart = "Head"
+local AimbotFOV = 90
+local AimbotSmoothness = 5
+local SpeedValue = 16
+local FovCamValue = 70
+local FlySpeed = 50
+local lastPositionsCount = 0
+local lastUpdate = 0
+
+local lastPositions = {}
+local FOVCircle = nil
+local FOVCircleFrame = nil
+local selectedPlayer = nil
+local posicaoOriginal = nil
+local savedPosition = nil
+local lastPositionTP = nil
+local originalHead = nil
+local originalLeftLeg = nil
+local bodyVelocity = nil
+local bodyGyro = nil
+local playerDropdown = nil
+local selectedAnimationPack = nil
+
+local LockUI
+local MiraUI
+
+local killAssassinActive = false
+local killSheriffActive = false
+local killAssassinConnection = nil
+local killSheriffConnection = nil
+local killAssassinPos = nil
+local killSheriffPos = nil
+local flingAllActive = false
+local flingAllQueue = {}
+local flingAllCurrentTarget = nil
+local flingAllConnection = nil
+local flingAllCheckConnection = nil
+local autoPickupActive = false
+local autoPickupTeleporting = false
+local autoPickupConnection = nil
 
 -- ================================ GERENCIADOR DE EVENTOS ================================
 
@@ -277,91 +221,45 @@ Players.PlayerRemoving:Connect(function()
     playerCacheDirty = true
 end)
 
--- ================================ VARIÁVEIS GLOBAIS ================================
+-- ================================ CACHE DE PAPEL ================================
 
-local AimbotEnabled = false
-local LockCamEnabled = false
-local ShowFPSEnabled = false
-local FPSUnlocked = false
-local backpackActive = false
-local headsitActive = false
-local spectateActive = false
-local infJumpEnabled = false
-local flingOPActive = false
-local LockUIActive = false
-local AutoFarmEnabled = false
-local HideNameEnabled = false
-local SpeedToggleEnabled = false
-local FOVCamToggleEnabled = false
-local SpinbotEnabled = false
-local headlessActive = false
-local korbloxActive = false
-local flying = false
-local ESPHighlightEnabled = false
-local ESPMM2HighlightEnabled = false
-local AutoFarmNoClipActive = false
-local AutoFarmMoving = false
-local NoClipEnabled = false
-local killAssassinActive = false
-local killSheriffActive = false
-local flingAllActive = false
-local autoPickupActive = false
-local autoPickupTeleporting = false
-local flingAllLoopRunning = false
-
-local SelectedAimPart = "Head"
-local AimbotFOV = 90
-local AimbotSmoothness = 5
-local SpeedValue = 16
-local FovCamValue = 70
-local FlySpeed = 50
-local lastPositionsCount = 0
-local emoteSpeed = 1
-local lastESPUpdate = 0
-
-local lastPositions = {}
-local ESPHighlights = {}
-local flingAllQueue = {}
-
-local FOVCircle = nil
-local FOVCircleFrame = nil
-local selectedPlayer = nil
-local posicaoOriginal = nil
-local savedPosition = nil
-local lastPositionTP = nil
-local originalHead = nil
-local originalLeftLeg = nil
-local bodyVelocity = nil
-local bodyGyro = nil
-local playerDropdown = nil
-local selectedAnimationPack = nil
-local currentEmoteTrack = nil
-local AutoFarmTween = nil
-local killAssassinConnection = nil
-local killSheriffConnection = nil
-local killAssassinPos = nil
-local killSheriffPos = nil
-local flingAllCurrentTarget = nil
-local flingAllConnection = nil
-local flingAllCheckConnection = nil
-local autoPickupConnection = nil
-
-local LockUI
-local MiraUI
-
--- ================================ FUNÇÃO DE PAPEL ================================
+local papelCache = {}
 
 local function getPapel(jogador)
-    local char = jogador.Character
-    if not char then return "Inocente"
-    if char:FindFirstChild("Knife") or char:FindFirstChild("FadeKnife") then return "Assassino"
-    if char:FindFirstChild("Gun") or char:FindFirstChild("Pistol") or char:FindFirstChild("Revolver") then return "Xerife"
-    if jogador.Backpack then
-        if jogador.Backpack:FindFirstChild("Knife") or jogador.Backpack:FindFirstChild("FadeKnife") then return "Assassino"
-        if jogador.Backpack:FindFirstChild("Gun") or jogador.Backpack:FindFirstChild("Pistol") or jogador.Backpack:FindFirstChild("Revolver") then return "Xerife"
+    if papelCache[jogador] then
+        return papelCache[jogador]
     end
-    return "Inocente"
+
+    local char = jogador.Character
+    if not char then return "Inocente" end
+
+    local papel = "Inocente"
+    if char:FindFirstChild("Knife") or char:FindFirstChild("FadeKnife") then
+        papel = "Assassino"
+    elseif char:FindFirstChild("Gun") or char:FindFirstChild("Pistol") or char:FindFirstChild("Revolver") then
+        papel = "Xerife"
+    elseif jogador.Backpack then
+        if jogador.Backpack:FindFirstChild("Knife") or jogador.Backpack:FindFirstChild("FadeKnife") then
+            papel = "Assassino"
+        elseif jogador.Backpack:FindFirstChild("Gun") or jogador.Backpack:FindFirstChild("Pistol") or jogador.Backpack:FindFirstChild("Revolver") then
+            papel = "Xerife"
+        end
+    end
+
+    papelCache[jogador] = papel
+    return papel
 end
+
+Players.PlayerAdded:Connect(function(plr)
+    papelCache[plr] = nil
+    plr.CharacterAdded:Connect(function()
+        papelCache[plr] = nil
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    papelCache[plr] = nil
+end)
 
 -- ================================ ANIMAÇÕES (COM IDs CORRIGIDOS) ================================
 
@@ -370,7 +268,6 @@ local ANIMATION_PACKS = {
     Patrol = { Idle1 = "1149612882", Idle2 = "1150842221", Walk = "1151231493", Run = "1150967949", Jump = "1148811837", Fall = "1148863382", Climb = "1148811837", Swim = "1151204998", SwimIdle = "1151220343" },
     Ghost = { Idle1 = "616006778", Idle2 = "616008087", Walk = "616013216", Run = "616010382", Jump = "616008936", Fall = "616005863", Climb = "616003713", Swim = "616011509", SwimIdle = "616012453" },
     AdidasSports = { Idle1 = "18537371272", Idle2 = "18537376492", Walk = "18537392113", Run = "18537384940", Jump = "18537380791", Fall = "18537367238", Climb = "18537363391", Swim = "18537397079", SwimIdle = "18537402320" },
-    AdidasCommunity = { Idle1 = "18537367238", Idle2 = "18537371272", Walk = "18537392113", Run = "18537384940", Jump = "18537380791", Fall = "18537375446", Climb = "18537369599", Swim = "18537397863", SwimIdle = "18537402207" },
     Levitation = { Idle1 = "616006778", Idle2 = "616008087", Walk = "616013216", Run = "616010382", Jump = "616008936", Fall = "616005863", Climb = "616003713", Swim = "616011509", SwimIdle = "616012453" },
     Werewolf = { Idle1 = "1083195517", Idle2 = "1083214717", Walk = "1083178339", Run = "1083216690", Jump = "1083218792", Fall = "1083189019", Climb = "1083182000", Swim = "1083222527", SwimIdle = "1083225406" },
     Vampire = { Idle1 = "1083445855", Idle2 = "1083450166", Walk = "1083473930", Run = "1083462077", Jump = "1083455352", Fall = "1083443587", Climb = "1083439238", Swim = "1083477583", SwimIdle = "1083480623" },
@@ -409,14 +306,17 @@ local famousEmotes = {
     {name = "Falso Morto MM2", id = "110770090804022"},
     {name = "Cagar", id = "72007752012770"},
     {name = "Dança Hype", id = "129200076968240"}
-}    
+}
+
+local currentEmoteTrack = nil
+local emoteSpeed = 1
 
 local function aplicarPack(pack)
     if not pack then return end
-    
+
     local char = player.Character or player.CharacterAdded:Wait()
     local animate = char:WaitForChild("Animate")
-    
+
     local function set(folder, id)
         if not folder then return end
         for _, v in pairs(folder:GetChildren()) do
@@ -425,7 +325,7 @@ local function aplicarPack(pack)
             end
         end
     end
-    
+
     set(animate:FindFirstChild("idle"), pack.Idle1)
     set(animate:FindFirstChild("walk"), pack.Walk)
     set(animate:FindFirstChild("run"), pack.Run)
@@ -433,7 +333,7 @@ local function aplicarPack(pack)
     set(animate:FindFirstChild("fall"), pack.Fall)
     set(animate:FindFirstChild("climb"), pack.Climb)
     set(animate:FindFirstChild("swim"), pack.Swim)
-    
+
     char:WaitForChild("Humanoid"):ChangeState(Enum.HumanoidStateType.Running)
 end
 
@@ -441,44 +341,44 @@ local function playEmote(id, speed)
     local char = player.Character or player.CharacterAdded:Wait()
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
-    
+
     local animator = humanoid:FindFirstChild("Animator")
     if not animator then
         animator = Instance.new("Animator")
         animator.Parent = humanoid
     end
-    
+
     if currentEmoteTrack then
         currentEmoteTrack:Stop()
         currentEmoteTrack = nil
     end
-    
+
     local success = pcall(function()
         humanoid:PlayEmote(tostring(id))
     end)
-    
+
     if success then
-        print(" Emote oficial: " .. id)
+        print(" Emote oficial: " .. id)
         return
     end
-    
+
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://" .. tostring(id)
-    
+
     local track = animator:LoadAnimation(anim)
     if track then
         track.Priority = Enum.AnimationPriority.Action4
-        track.Looped = true
+        track.Looped = false
         track:Play()
-        
+
         if speed and speed ~= 1 then
             track:AdjustSpeed(speed)
         end
-        
+
         currentEmoteTrack = track
-        print(" Animation carregada: " .. id)
+        print(" Animation carregada: " .. id)
     else
-        warn(" Falhou: " .. id)
+        warn(" Falhou: " .. id)
         Notify("Emote não encontrado!", "error")
     end
 end
@@ -491,6 +391,9 @@ local function stopEmote()
 end
 
 -- ================================ ESP HIGHLIGHT ================================
+
+local ESPHighlights = {}
+local lastESPUpdate = 0
 
 local function limparESPHighlight()
     for player, data in pairs(ESPHighlights) do
@@ -507,103 +410,96 @@ local function atualizarESPHighlight()
         if next(ESPHighlights) then limparESPHighlight() end
         return
     end
+
     if tick() - lastESPUpdate < 0.2 then return end
     lastESPUpdate = tick()
+
     local myChar = GetChar()
-    if not myChar then return end
-    local myHRP = GetHRP(myChar)
+    local myHRP = myChar and GetHRP(myChar)
     if not myHRP then return end
+
     local myPos = myHRP.Position
+
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr == player then
-        else
-            local char = plr.Character
-            if not char then
-                if ESPHighlights[plr] then
-                    pcall(function()
-                        if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                        if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                    end)
-                    ESPHighlights[plr] = nil
-                end
+        if plr == player then continue end
+
+        local char = plr.Character
+        local humanoid = char and GetHumanoid(char)
+
+        if not char or not humanoid or humanoid.Health <= 0 then
+            if ESPHighlights[plr] then
+                pcall(function()
+                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
+                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
+                end)
+                ESPHighlights[plr] = nil
+            end
+            continue
+        end
+
+        local root = GetHRP(char)
+        if not root then continue end
+
+        local distancia = (root.Position - myPos).Magnitude
+
+        if distancia > 300 then
+            if ESPHighlights[plr] then
+                pcall(function()
+                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
+                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
+                end)
+                ESPHighlights[plr] = nil
+            end
+            continue
+        end
+
+        local cor = Color3.fromRGB(255, 255, 255)
+
+        if ESPMM2HighlightEnabled then
+            local papel = getPapel(plr)
+            if papel == "Assassino" then
+                cor = Color3.fromRGB(255, 0, 0)
+            elseif papel == "Xerife" then
+                cor = Color3.fromRGB(0, 100, 255)
             else
-                local humanoid = GetHumanoid(char)
-                if not humanoid or humanoid.Health <= 0 then
-                    if ESPHighlights[plr] then
-                        pcall(function()
-                            if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                            if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                        end)
-                        ESPHighlights[plr] = nil
-                    end
-                else
-                    local root = GetHRP(char)
-                    if not root then
-                    else
-                        local distancia = (root.Position - myPos).Magnitude
-                        if distancia > 500 then
-                            if ESPHighlights[plr] then
-                                pcall(function()
-                                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                                end)
-                                ESPHighlights[plr] = nil
-                            end
-                        else
-                            local cor = Color3.fromRGB(255, 255, 255)
-                            if ESPMM2HighlightEnabled then
-                                local papel = getPapel(plr)
-                                if papel == "Assassino" then
-                                    cor = Color3.fromRGB(255, 0, 0)
-                                elseif papel == "Xerife" then
-                                    cor = Color3.fromRGB(0, 100, 255)
-                                else
-                                    cor = Color3.fromRGB(0, 255, 0)
-                                end
-                            end
-                            if not ESPHighlights[plr] then
-                                if char and char.Parent then
-                                    local highlight = Instance.new("Highlight")
-                                    highlight.Parent = char
-                                    highlight.FillTransparency = 0.7
-                                    highlight.OutlineTransparency = 0.3
-                                    highlight.FillColor = cor
-                                    highlight.OutlineColor = cor
-                                    local billboard = Instance.new("BillboardGui")
-                                    billboard.Name = "ESPBillboard"
-                                    local head = char:FindFirstChild("Head")
-                                    if head then
-                                        billboard.Parent = head
-                                    else
-                                        billboard.Parent = char
-                                    end
-                                    billboard.Size = UDim2.new(0, 100, 0, 30)
-                                    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-                                    billboard.AlwaysOnTop = true
-                                    local textLabel = Instance.new("TextLabel")
-                                    textLabel.Parent = billboard
-                                    textLabel.Size = UDim2.new(1, 0, 1, 0)
-                                    textLabel.BackgroundTransparency = 1
-                                    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                                    textLabel.TextStrokeTransparency = 0.5
-                                    textLabel.Font = Enum.Font.GothamBold
-                                    textLabel.TextSize = 8
-                                    textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
-                                    ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
-                                end
-                            else
-                                local data = ESPHighlights[plr]
-                                if data.Highlight then
-                                    data.Highlight.FillColor = cor
-                                    data.Highlight.OutlineColor = cor
-                                end
-                                if data.TextLabel then
-                                    data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
-                                end
-                            end
-                        end
-                    end
-                end
+                cor = Color3.fromRGB(0, 255, 0)
+            end
+        end
+
+        if not ESPHighlights[plr] then
+            local highlight = Instance.new("Highlight")
+            highlight.Parent = char
+            highlight.FillTransparency = 0.7
+            highlight.OutlineTransparency = 0.3
+            highlight.FillColor = cor
+            highlight.OutlineColor = cor
+
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ESPBillboard"
+            billboard.Parent = char:FindFirstChild("Head") or char
+            billboard.Size = UDim2.new(0, 100, 0, 30)
+            billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+            billboard.AlwaysOnTop = true
+
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Parent = billboard
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            textLabel.TextStrokeTransparency = 0.5
+            textLabel.Font = Enum.Font.GothamBold
+            textLabel.TextSize = 8
+            textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+
+            ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
+        else
+            local data = ESPHighlights[plr]
+            if data.Highlight then
+                data.Highlight.FillColor = cor
+                data.Highlight.OutlineColor = cor
+            end
+            if data.TextLabel then
+                data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
             end
         end
     end
@@ -620,9 +516,11 @@ end
 
 -- ================================ OCULTAR NOME ================================
 
+local HideNameEnabled = false
+
 local function aplicarOcultarNome(char)
     if not char then return end
-    
+
     local humanoid = GetHumanoid(char)
     if humanoid then
         if HideNameEnabled then
@@ -660,9 +558,11 @@ end
 
 -- ================================ NOCLIP ================================
 
+local NoClipEnabled = false
+
 local function NoClipTask()
     if not NoClipEnabled then return end
-    
+
     local char = GetChar()
     if char then
         for _, part in pairs(char:GetDescendants()) do
@@ -675,13 +575,18 @@ end
 
 -- ================================ AUTOFARM ================================
 
+local AutoFarmEnabled = false
+local AutoFarmNoClipActive = false
+local AutoFarmMoving = false
+local AutoFarmTween = nil
+
 local function pararAutoFarmMovimento()
     if AutoFarmTween and AutoFarmTween.PlaybackState == Enum.PlaybackState.Playing then
         AutoFarmTween:Cancel()
     end
     AutoFarmMoving = false
     AutoFarmTween = nil
-    
+
     if AutoFarmNoClipActive then
         pcall(function()
             local char = GetChar()
@@ -700,10 +605,10 @@ end
 local function moverParaMoeda(moeda)
     local char = GetChar()
     if not char then return false end
-    
+
     local hrp = GetHRP(char)
     if not hrp then return false end
-    
+
     if not AutoFarmNoClipActive then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -712,36 +617,36 @@ local function moverParaMoeda(moeda)
         end
         AutoFarmNoClipActive = true
     end
-    
+
     local targetPos = moeda.Position + Vector3.new(0, 2, 0)
     local distancia = (targetPos - hrp.Position).Magnitude
     local velocidade = 45
     local duracao = distancia / velocidade
-    
-    if duracao < 0.3 then duracao = 0.3 end
-    
+
+    if duracao < 0.2 then duracao = 0.2 end
+
     local tweenInfo = TweenInfo.new(duracao, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
-    
+
     AutoFarmTween = tween
     AutoFarmMoving = true
     tween:Play()
     tween.Completed:Wait()
     task.wait(0.2)
     AutoFarmMoving = false
-    
+
     return true
 end
 
 local function getNearestCoinNatural()
     local myHRP = GetHRP()
     if not myHRP then return nil end
-    
+
     atualizarCacheMoedas()
-    
+
     local nearestCoin = nil
     local nearestDist = 200
-    
+
     for _, obj in pairs(coinCache) do
         if obj and obj.Parent then
             local dist = (obj.Position - myHRP.Position).Magnitude
@@ -751,14 +656,14 @@ local function getNearestCoinNatural()
             end
         end
     end
-    
+
     return nearestCoin
 end
 
 local function AutoFarmTaskNatural()
     if not AutoFarmEnabled then return end
     if AutoFarmMoving then return end
-    
+
     local moeda = getNearestCoinNatural()
     if moeda then
         moverParaMoeda(moeda)
@@ -767,7 +672,7 @@ end
 
 local function AutoFarmToggle(Value)
     AutoFarmEnabled = Value
-    
+
     if Value then
         if LoopManager.tasks["AutoFarm"] then
             LoopManager:Remove("AutoFarm")
@@ -785,20 +690,20 @@ local function CanSeePlayer(target)
     local myChar = GetChar()
     if not myChar or not myChar:FindFirstChild("Head") then return false end
     if not target.Character or not target.Character:FindFirstChild("Head") then return false end
-    
+
     local origin = camera.CFrame.Position
     local targetPos = target.Character.Head.Position
     local direction = (targetPos - origin).Unit * 1000
-    
+
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     raycastParams.FilterDescendantsInstances = {myChar}
-    
+
     local result = workspace:Raycast(origin, direction, raycastParams)
     if result then
         return result.Instance:IsDescendantOf(target.Character)
     end
-    
+
     return true
 end
 
@@ -811,7 +716,7 @@ local function UpdateFOVCircle()
         end
         return
     end
-    
+
     if not FOVCircle then
         local gui = Instance.new("ScreenGui")
         gui.Name = "FOVCircle"
@@ -820,26 +725,26 @@ local function UpdateFOVCircle()
         gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         gui.DisplayOrder = 999
         gui.IgnoreGuiInset = true
-        
+
         local circle = Instance.new("Frame")
         circle.Parent = gui
         circle.BackgroundTransparency = 1
         circle.BorderSizePixel = 0
-        
+
         local stroke = Instance.new("UIStroke")
         stroke.Parent = circle
         stroke.Color = Color3.fromRGB(220, 50, 50)
         stroke.Thickness = 0.3
         stroke.Transparency = 0
-        
+
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(1, 0)
         corner.Parent = circle
-        
+
         FOVCircle = gui
         FOVCircleFrame = circle
     end
-    
+
     if FOVCircleFrame then
         FOVCircleFrame.Size = UDim2.new(0, AimbotFOV * 2, 0, AimbotFOV * 2)
         FOVCircleFrame.Position = UDim2.new(0.5, -AimbotFOV, 0.5, -AimbotFOV)
@@ -849,16 +754,16 @@ end
 local function GetClosestPlayerWithFOV(ignoreWalls)
     local closestPlayer = nil
     local bestScore = math.huge
-    
+
     local myPos = GetChar() and GetChar():FindFirstChild("Head") and GetChar().Head.Position
     if not myPos then return nil end
-    
+
     atualizarPlayerCache()
-    
+
     for _, otherPlayer in pairs(playerCache) do
         local char = otherPlayer.Character
         if not char then continue end
-        
+
         local aimPart
         if SelectedAimPart == "Head" then
             aimPart = char:FindFirstChild("Head")
@@ -866,14 +771,14 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
             aimPart = GetHRP(char)
         end
         if not aimPart then continue end
-        
+
         local humanoid = GetHumanoid(char)
         if not humanoid or humanoid.Health <= 0 then continue end
-        
+
         if ignoreWalls and not CanSeePlayer(otherPlayer) then continue end
-        
+
         local targetPos = aimPart.Position
-        
+
         if lastPositionsCount > 100 then
             local oldest = nil
             local oldestTime = math.huge
@@ -888,7 +793,7 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
                 lastPositionsCount = lastPositionsCount - 1
             end
         end
-        
+
         local velocity = Vector3.new(0, 0, 0)
         if lastPositions[otherPlayer] then
             local lastPos, lastTime = lastPositions[otherPlayer].pos, lastPositions[otherPlayer].time
@@ -897,26 +802,26 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
                 velocity = (targetPos - lastPos) / dt
             end
         end
-        
+
         lastPositions[otherPlayer] = {pos = targetPos, time = tick()}
         lastPositionsCount = lastPositionsCount + 1
-        
+
         local predictedPos = targetPos + (velocity * 0.2)
         local screenPoint = camera:WorldToViewportPoint(predictedPos)
         if screenPoint.Z <= 0 then continue end
-        
+
         local centerDist = (Vector2.new(screenPoint.X, screenPoint.Y) - Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)).Magnitude
         if centerDist > AimbotFOV then continue end
-        
+
         local realDist = (targetPos - myPos).Magnitude
         local score = (centerDist * 0.7) + (realDist * 0.3)
-        
+
         if score < bestScore then
             bestScore = score
             closestPlayer = otherPlayer
         end
     end
-    
+
     return closestPlayer
 end
 
@@ -933,7 +838,7 @@ local function AimbotTask()
             else
                 aimPart = GetHRP(target.Character)
             end
-            
+
             if aimPart then
                 local targetPos = aimPart.Position
                 if lastPositions[target] then
@@ -944,13 +849,13 @@ local function AimbotTask()
                         targetPos = targetPos + (velocity * 0.15)
                     end
                 end
-                
+
                 local currentLook = camera.CFrame.LookVector
                 local targetLook = (targetPos - camera.CFrame.Position).Unit
                 local distancia = (targetPos - camera.CFrame.Position).Magnitude
                 local smoothFactor = 1 / (AimbotSmoothness * (1 + distancia / 100))
                 local smoothLook = currentLook:Lerp(targetLook, smoothFactor)
-                
+
                 camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + smoothLook)
             end
         end
@@ -979,14 +884,14 @@ local function LockCamTask()
         if character and GetHRP(character) then
             local rootPart = GetHRP(character)
             local humanoid = GetHumanoid(character)
-            
+
             if humanoid then
                 humanoid.CameraOffset = Vector3.new(1.5, 0, 0)
             end
-            
+
             local cameraDirection = camera.CFrame.LookVector
             cameraDirection = Vector3.new(cameraDirection.X, 0, cameraDirection.Z).Unit
-            
+
             if cameraDirection.Magnitude > 0 then
                 rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + cameraDirection)
             end
@@ -1013,7 +918,7 @@ local function CriarFPSDisplay()
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Enabled = false
-    
+
     local frame = Instance.new("Frame")
     frame.Parent = gui
     frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -1022,11 +927,11 @@ local function CriarFPSDisplay()
     frame.Position = UDim2.new(1, -80, 0, 8)
     frame.Active = false
     frame.Draggable = false
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = frame
-    
+
     local fpsLabel = Instance.new("TextLabel")
     fpsLabel.Parent = frame
     fpsLabel.BackgroundTransparency = 1
@@ -1036,21 +941,21 @@ local function CriarFPSDisplay()
     fpsLabel.TextScaled = true
     fpsLabel.Font = Enum.Font.GothamBold
     fpsLabel.TextStrokeTransparency = 0.5
-    
+
     local lastTime = tick()
     local frameCount = 0
     local fps = 60
-    
+
     LoopManager:Add("FPSDisplay", function()
         if not gui.Enabled then return end
-        
+
         frameCount = frameCount + 1
         local currentTime = tick()
         if currentTime - lastTime >= 1 then
             fps = frameCount
             frameCount = 0
             lastTime = currentTime
-            
+
             if fps >= 50 then
                 fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
             elseif fps >= 30 then
@@ -1058,11 +963,11 @@ local function CriarFPSDisplay()
             else
                 fpsLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
             end
-            
+
             fpsLabel.Text = "FPS: " .. fps
         end
     end)
-    
+
     return gui
 end
 
@@ -1083,7 +988,7 @@ end)
 
 local function CreateShiftLockButton()
     if LockUI then LockUI:Destroy() end
-    
+
     local gui = Instance.new("ScreenGui")
     gui.Name = "ShiftLockButton"
     gui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
@@ -1091,7 +996,7 @@ local function CreateShiftLockButton()
     gui.DisplayOrder = 999
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
+
     local button = Instance.new("ImageButton")
     button.Parent = gui
     button.Name = "ShiftLockButton"
@@ -1103,7 +1008,7 @@ local function CreateShiftLockButton()
     button.BorderSizePixel = 0
     button.AutoButtonColor = false
     button.ZIndex = 2
-    
+
     local function UpdateButtonState(active)
         if active then
             button.Image = "rbxassetid://139211296111194"
@@ -1115,19 +1020,19 @@ local function CreateShiftLockButton()
         end
         LockUIActive = active
     end
-    
+
     button.MouseButton1Click:Connect(function()
         local novoEstado = not LockUIActive
         UpdateButtonState(novoEstado)
     end)
-    
+
     UpdateButtonState(false)
     LockUI = gui
 end
 
 local function CriarMira()
     if MiraUI then MiraUI:Destroy() end
-    
+
     local gui = Instance.new("ScreenGui")
     gui.Name = "MiraCentral"
     gui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
@@ -1136,14 +1041,14 @@ local function CriarMira()
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Enabled = false
-    
+
     local mira = Instance.new("ImageLabel")
     mira.Parent = gui
     mira.BackgroundTransparency = 1
     mira.Size = UDim2.new(0, 23, 0, 23)
     mira.Position = UDim2.new(0.5, -11, 0.5, -12)
     mira.Image = "rbxassetid://17404114716"
-    
+
     MiraUI = gui
 end
 
@@ -1155,33 +1060,33 @@ local function startFly()
         Notify("Personagem não encontrado", "error")
         return
     end
-    
+
     local humanoid = GetHumanoid(char)
     local hrp = GetHRP(char)
-    
+
     if not humanoid or not hrp then
         Notify("Humanoid ou HRP não encontrado", "error")
         return
     end
-    
+
     if bodyVelocity then pcall(function() bodyVelocity:Destroy() end) end
     if bodyGyro then pcall(function() bodyGyro:Destroy() end) end
-    
+
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Name = "FlyVelocity"
     bodyVelocity.MaxForce = Vector3.new(999999, 999999, 999999)
     bodyVelocity.Parent = hrp
-    
+
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.Name = "FlyGyro"
     bodyGyro.MaxTorque = Vector3.new(999999, 999999, 999999)
     bodyGyro.Parent = hrp
-    
+
     humanoid.PlatformStand = true
-    
+
     LoopManager:Add("FlyUpdate", function()
         if not flying then return end
-        
+
         local char = GetChar()
         if not char then
             if flying then
@@ -1190,30 +1095,30 @@ local function startFly()
             end
             return
         end
-        
+
         local humanoid = GetHumanoid(char)
         local hrp = GetHRP(char)
-        
+
         if not humanoid or not hrp then
             return
         end
-        
+
         local camera = workspace.CurrentCamera
         local moveDir = humanoid.MoveDirection
-        
+
         local velocity = moveDir * FlySpeed
-        
+
         if moveDir.Magnitude > 0 then
             local lookY = camera.CFrame.LookVector.Y
             local forwardDot = moveDir:Dot(camera.CFrame.LookVector)
             local directionFix = (forwardDot >= 0) and 1 or -1
             velocity = velocity + Vector3.new(0, lookY * FlySpeed * directionFix, 0)
         end
-        
+
         if bodyVelocity then
             bodyVelocity.Velocity = velocity
         end
-        
+
         if bodyGyro then
             bodyGyro.CFrame = camera.CFrame
         end
@@ -1222,7 +1127,7 @@ end
 
 local function StopFly()
     flying = false
-    
+
     local char = GetChar()
     if char then
         local humanoid = GetHumanoid(char)
@@ -1230,17 +1135,17 @@ local function StopFly()
             humanoid.PlatformStand = false
         end
     end
-    
+
     if bodyVelocity then
         pcall(function() bodyVelocity:Destroy() end)
         bodyVelocity = nil
     end
-    
+
     if bodyGyro then
         pcall(function() bodyGyro:Destroy() end)
         bodyGyro = nil
     end
-    
+
     LoopManager:Remove("FlyUpdate")
 end
 
@@ -1257,24 +1162,24 @@ end
 
 local function SpinbotTask()
     if not SpinbotEnabled then return end
-    
+
     local char = GetChar()
     if not char then return end
-    
+
     local hrp = GetHRP(char)
     if not hrp then return end
-    
+
     hrp.RotVelocity = Vector3.new(0, 200, 0)
 end
 
 local function toggleSpinbot(state)
     SpinbotEnabled = state
-    
+
     if state then
         LoopManager:Add("Spinbot", SpinbotTask)
     else
         LoopManager:Remove("Spinbot")
-        
+
         local char = GetChar()
         if char then
             local hrp = GetHRP(char)
@@ -1292,12 +1197,12 @@ local function stopAll()
         backpackActive = false
         LoopManager:Remove("Backpack")
     end
-    
+
     if headsitActive then
         headsitActive = false
         LoopManager:Remove("Headsit")
     end
-    
+
     if spectateActive then
         spectateActive = false
         local myChar = GetChar()
@@ -1306,25 +1211,25 @@ local function stopAll()
             camera.CameraType = Enum.CameraType.Custom
         end
     end
-    
+
     if flingOPActive then
 	    flingOPActive = false
 	    LoopManager:Remove("FlingOP")
-	    
+
 	    local meuHRP = GetHRP()
 	    if meuHRP then
 		    meuHRP.RotVelocity = Vector3.new(0, 0, 0)
 		    meuHRP.Velocity = Vector3.new(0, 0, 0)
 		    meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 		    meuHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-		    
+
 		    if posicaoOriginal then
 		        meuHRP.CFrame = posicaoOriginal
 		        posicaoOriginal = nil
 		    end
 		end
 	end
-    
+
     local char = GetChar()
     if char and char:FindFirstChild("Humanoid") then
         char.Humanoid.Sit = false
@@ -1341,7 +1246,7 @@ local function toggleHeadless(state)
     if not head then return end
 
     local hairKeywords = {"hair", "cabelo", "wig", "cabel", "hairstyle", "bangs", "ponytail", "braid", "haircut"}
-    
+
     local function isHair(accessoryName)
         local lowerName = accessoryName:lower()
         for _, keyword in pairs(hairKeywords) do
@@ -1369,7 +1274,7 @@ local function toggleHeadless(state)
             if accessory:IsA("Accessory") then
                 local handle = accessory:FindFirstChild("Handle")
                 local weld = handle and handle:FindFirstChildOfClass("Weld")
-                
+
                 if isHair(accessory.Name) then
                     if handle then
                         handle.Transparency = 0
@@ -1771,27 +1676,27 @@ JogadorTab:Button({
         local success, err = pcall(function()
             local plr = Players.LocalPlayer
             if not plr.Character then return end
-            
+
             local tool = Instance.new("Tool")
             tool.Name = "TP Tool"
             tool.RequiresHandle = false
             tool.CanBeDropped = false
             tool.TextureId = "rbxassetid://13060727541"
-            
+
             tool.Activated:Connect(function()
                 local mouse = plr:GetMouse()
                 local target = mouse.Target
                 local hit = mouse.Hit
-                
+
                 if target and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                     local rayOrigin = hit.Position + Vector3.new(0, 5, 0)
                     local rayDirection = Vector3.new(0, -10, 0)
                     local raycastParams = RaycastParams.new()
                     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
                     raycastParams.FilterDescendantsInstances = {plr.Character}
-                    
+
                     local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                    
+
                     if rayResult and rayResult.Instance and rayResult.Instance.CanCollide then
                         plr.Character.HumanoidRootPart.CFrame = CFrame.new(rayResult.Position + Vector3.new(0, 3, 0))
                     elseif hit.Position.Y > 3 and hit.Position.Y < 1000 then
@@ -1799,10 +1704,10 @@ JogadorTab:Button({
                     end
                 end
             end)
-            
+
             tool.Parent = plr.Backpack
         end)
-        
+
         if not success then
             Notify("Erro ao criar TP Tool", "error")
         end
@@ -1817,33 +1722,33 @@ JogadorTab:Button({
             Notify("Personagem não encontrado", "error")
             return
         end
-        
+
         local hrp = GetHRP(char)
         if not hrp then
             Notify("HumanoidRootPart não encontrado", "error")
             return
         end
-        
+
         local posicaoAtual = hrp.CFrame
         local flyEstavaAtivo = flying
-        
+
         if flyEstavaAtivo then
             toggleFly(false)
         end
-        
+
         local humanoid = GetHumanoid(char)
         if humanoid then
             humanoid.Health = 0
         end
-        
+
         local newChar = player.CharacterAdded:Wait()
         task.wait(0.1)
-        
+
         local newHRP = GetHRP(newChar)
         if newHRP then
             newHRP.CFrame = posicaoAtual
         end
-        
+
         if flyEstavaAtivo then
             task.wait(0.2)
             toggleFly(true)
@@ -1857,8 +1762,6 @@ local OnlinesTab = Window:Tab({Title = "Onlines", Icon = "users"})
 
 OnlinesTab:Section({Title = "Jogadores"})
 
-local lastUpdate = 0
-
 local function getPlayerList()
     local list = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -1870,51 +1773,44 @@ local function getPlayerList()
 end
 
 local function updatePlayerDropdown()
-    if tick() - lastUpdate < 1 then return end
+    if not playerDropdown then return end
+    if tick() - lastUpdate < 0.5 then return end
     lastUpdate = tick()
-    if playerDropdown and playerDropdown.Refresh then
-        pcall(function()
-            local newList = getPlayerList()
-            if #newList > 0 then
-                playerDropdown:Refresh(newList)
-            end
-        end)
+
+    local newList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(newList, p.Name)
+        end
     end
+    playerDropdown:Refresh(newList)
 end
 
-local listaInicial = getPlayerList()
 playerDropdown = OnlinesTab:Dropdown({
     Title = "Selecionar Jogador",
-    Values = #listaInicial > 0 and listaInicial or {"Ninguem"},
+    Values = getPlayerList(),
     Default = "Ninguem",
     Callback = function(name)
-        if name == "Ninguem" or not name then
-            selectedPlayer = nil
-            return
-        end
         for _, p in ipairs(Players:GetPlayers()) do
             if p.Name == name and p ~= player then
                 selectedPlayer = p
                 break
             end
         end
-        if not selectedPlayer then
-            Notify("Jogador não encontrado!", "error")
-        end
     end
 })
 
-Players.PlayerAdded:Connect(function()
+EventManager:Add("PlayerAdded", Players.PlayerAdded:Connect(function()
     updatePlayerDropdown()
-end)
+end))
 
-Players.PlayerRemoving:Connect(function(p)
+EventManager:Add("PlayerRemoving", Players.PlayerRemoving:Connect(function(p)
     if selectedPlayer == p then
         selectedPlayer = nil
         stopAll()
     end
     updatePlayerDropdown()
-end)
+end))
 
 OnlinesTab:Section({Title = "Ações"})
 
@@ -1926,7 +1822,7 @@ OnlinesTab:Button({
             return
         end
         stopAll()
-        
+
         local char = selectedPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
             camera.CameraSubject = char.Humanoid
@@ -1946,10 +1842,10 @@ OnlinesTab:Button({
             return
         end
         stopAll()
-        
+
         local targetChar = selectedPlayer.Character
         local myChar = GetChar()
-        
+
         if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and myChar and myChar:FindFirstChild("HumanoidRootPart") then
             myChar.HumanoidRootPart.CFrame = targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
         else
@@ -1965,22 +1861,22 @@ OnlinesTab:Button({
             Notify("Selecione um jogador primeiro", "error")
             return
         end
-        
+
         if backpackActive then
             stopAll()
             Notify("Backpack desativado", "info")
             return
         end
-        
+
         stopAll()
         backpackActive = true
-        
+
         LoopManager:Add("Backpack", function()
             if not backpackActive or not selectedPlayer or not selectedPlayer.Character then
                 LoopManager:Remove("Backpack")
                 return
             end
-            
+
             local myChar = GetChar()
             if myChar and myChar:FindFirstChild("HumanoidRootPart") then
                 local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -2002,34 +1898,34 @@ OnlinesTab:Button({
             Notify("Selecione um jogador primeiro", "error")
             return
         end
-        
+
         if headsitActive then
             stopAll()
             Notify("Headsit desativado", "info")
             return
         end
-        
+
         stopAll()
         headsitActive = true
-        
+
         LoopManager:Add("Headsit", function()
             if not headsitActive or not selectedPlayer or not selectedPlayer.Character then
                 LoopManager:Remove("Headsit")
                 return
             end
-            
+
             local myChar = GetChar()
             if myChar and myChar:FindFirstChild("HumanoidRootPart") then
                 local targetHead = selectedPlayer.Character:FindFirstChild("Head")
                 local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-                
+
                 if targetHead and targetRoot then
                     local headPos = targetHead.Position + Vector3.new(0, 2.5, 0)
                     local lookDirection = targetRoot.CFrame.LookVector
                     lookDirection = Vector3.new(lookDirection.X, 0, lookDirection.Z).Unit
-                    
+
                     myChar.HumanoidRootPart.CFrame = CFrame.lookAt(headPos, headPos + lookDirection)
-                    
+
                     if myChar.Humanoid:GetState() ~= Enum.HumanoidStateType.Seated then
                         myChar.Humanoid.Sit = true
                     end
@@ -2046,85 +1942,85 @@ OnlinesTab:Button({
             Notify("Selecione um jogador primeiro", "error")
             return
         end
-        
+
         if flingOPActive then
             stopAll()
             Notify("Fling OP desativado", "info")
             return
         end
-        
+
         stopAll()
-        
+
         local targetChar = selectedPlayer.Character
         local myChar = GetChar()
-        
+
         if not targetChar or not myChar then
             Notify("Personagem não encontrado", "error")
             return
         end
-        
+
         local targetHRP = GetHRP(targetChar)
         local myHRP = GetHRP(myChar)
-        
+
         if not targetHRP or not myHRP then
             Notify("HumanoidRootPart não encontrado", "error")
             return
         end
-        
+
         flingOPActive = true
         posicaoOriginal = myHRP.CFrame
-        
+
         LoopManager:Add("FlingOP", function()
             if not flingOPActive then
                 LoopManager:Remove("FlingOP")
                 return
             end
-            
+
             if not selectedPlayer or not selectedPlayer.Character then
                 stopAll()
                 return
             end
-            
+
             local myHRP = GetHRP()
             local targetHRP = GetHRP(selectedPlayer.Character)
-            
+
             if not myHRP or not targetHRP then
                 return
             end
-            
+
             myHRP.AssemblyLinearVelocity = Vector3.new(
                 math.random(-500, 500),
                 math.random(400, 900),
                 math.random(-500, 500)
             )
-            
+
             myHRP.AssemblyAngularVelocity = Vector3.new(
                 math.random(-30, 30),
                 math.random(-30, 30),
                 math.random(-30, 30)
             )
-            
+
             myHRP.RotVelocity = Vector3.new(
                 math.random(8000, 12000),
                 math.random(8000, 12000),
                 math.random(8000, 12000)
             )
-            
+
             local randomAngle = CFrame.Angles(
                 math.rad(math.random(-360, 360)),
                 math.rad(math.random(-360, 360)),
                 math.rad(math.random(-360, 360))
             )
-            
+
             local yOffset = math.random(-6, 6)
-            
+
             myHRP.CFrame = targetHRP.CFrame *
                 CFrame.new(
                     math.random(-1, 1),
                     yOffset,
                     math.random(-1, 1)
                 ) * randomAngle
-            
+
             targetHRP.AssemblyLinearVelocity = Vector3.new(
                 math.random(-200, 200),
                 math.random(300, 600),
@@ -2139,7 +2035,6 @@ OnlinesTab:Button({
     Callback = function()
         local temAcaoAtiva = backpackActive or headsitActive or spectateActive or flingOPActive        
         if not temAcaoAtiva then
-            Notify("Nenhuma ação ativa na aba Onlines para parar!", "info")
             return
         end
         stopAll()
@@ -2150,17 +2045,6 @@ OnlinesTab:Button({
 
 local MM2Tab = Window:Tab({Title = "Murder Mystery 2", Icon = "axe"})
 
-local function encontrarPorPapel(papelAlvo)
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            if getPapel(plr) == papelAlvo then
-                return plr
-            end
-        end
-    end
-    return nil
-end
-
 MM2Tab:Section({Title = "Visuais"})
 
 MM2Tab:Toggle({
@@ -2169,7 +2053,7 @@ MM2Tab:Toggle({
     Callback = function(Value)
         if Value then
             if ESPHighlightEnabled then
-                Notify("Desative o ESP Visual primeiro", "error")
+                Notify("Desative outro ESP primeiro", "error")
                 return
             end
             ESPMM2HighlightEnabled = true
@@ -2183,10 +2067,21 @@ MM2Tab:Toggle({
     end
 })
 
+local function encontrarPorPapel(papelAlvo)
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then
+            if getPapel(plr) == papelAlvo then
+                return plr
+            end
+        end
+    end
+    return nil
+end
+
 MM2Tab:Section({Title = "Combat"})
 
 MM2Tab:Button({
-    Title = "Puxar Xerife",
+    Title = "Matar Xerife",
     Callback = function()
         local xerife = encontrarPorPapel("Xerife")
         if xerife and xerife.Character then
@@ -2202,11 +2097,13 @@ MM2Tab:Button({
 })
 
 MM2Tab:Button({
-    Title = "Puxar Todos",
+    Title = "Matar Todos",
     Callback = function()
         local myHRP = GetHRP()
-        if not myHRP then return end        
-        local myPos = myHRP.Position        
+        if not myHRP then return end
+
+        local myPos = myHRP.Position
+
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player and plr.Character then
                 local targetHRP = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -2484,7 +2381,6 @@ local function pararFlingAll()
             flingAllCheckConnection = nil
         end
         LoopManager:Remove("FlingAll")
-        Notify("Jogar todos longe desativado", "info")
     end
 end
 
@@ -2963,7 +2859,7 @@ AnimationsTab:Section({Title = "Full Packs"})
 AnimationsTab:Dropdown({
     Title = "Animation Packs",
     Values = {
-        "Sneaky", "Patrol", "Ghost", "AdidasSports", "AdidasCommunity",
+        "Sneaky", "Patrol", "Ghost", "AdidasSports",
         "Levitation", "Werewolf", "Vampire", "Pirate", "Zombie",
         "Astronaut", "Ninja", "Mage", "Elder", "Toy",
         "Knight", "Cartoony", "SuperHero", "Bubbly", "Robot",
