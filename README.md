@@ -1,5 +1,125 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
+-- ================================ DEBUG COMPLETO ================================
+print("═══════════════════════════════════════════════════════════")
+print("🔍 INICIANDO DEBUG DO SCARLET HUB")
+print("═══════════════════════════════════════════════════════════")
+
+-- Verificar WindUI
+print("[1] Verificando WindUI...")
+if WindUI then
+    print("   ✅ WindUI carregado com sucesso!")
+    print("   📦 Tipo: " .. type(WindUI))
+else
+    error("   ❌ ERRO CRÍTICO: WindUI é nil! O hub não vai carregar!")
+end
+
+-- Verificar Window
+print("[2] Verificando Window...")
+if Window then
+    print("   ✅ Window criada com sucesso!")
+else
+    error("   ❌ ERRO: Window é nil!")
+end
+
+-- Verificar serviços
+print("[3] Verificando serviços...")
+local servicos = {"Players", "RunService", "TweenService", "UserInputService", "Lighting"}
+for _, servico in ipairs(servicos) do
+    if game:GetService(servico) then
+        print("   ✅ " .. servico .. " carregado")
+    else
+        print("   ❌ " .. servico .. " NÃO carregado!")
+    end
+end
+
+-- Verificar funções auxiliares
+print("[4] Verificando funções auxiliares...")
+local funcoes = {"GetChar", "GetHRP", "GetHumanoid", "Notify", "EventManager", "LoopManager"}
+for _, func in ipairs(funcoes) do
+    if _G[func] or getfenv()[func] or rawget(_G, func) then
+        print("   ✅ " .. func .. " existe")
+    else
+        print("   ⚠️ " .. func .. " não encontrada globalmente")
+    end
+end
+
+-- Verificar GetChar especificamente
+pcall(function()
+    local test = GetChar
+    if test then
+        print("   ✅ GetChar é uma função")
+    end
+end)
+
+-- Verificar variáveis globais
+print("[5] Verificando variáveis principais...")
+local vars = {"AimbotEnabled", "ESPHighlightEnabled", "selectedPlayer", "playerDropdown", "currentEmoteTrack"}
+for _, var in ipairs(vars) do
+    if _G[var] ~= nil then
+        print("   ✅ " .. var .. " existe")
+    else
+        print("   ⚠️ " .. var .. " ainda não definida")
+    end
+end
+
+-- Verificar ANIMATION_PACKS
+print("[6] Verificando ANIMATION_PACKS...")
+if ANIMATION_PACKS then
+    local count = 0
+    for k, v in pairs(ANIMATION_PACKS) do
+        count = count + 1
+    end
+    print("   ✅ ANIMATION_PACKS carregado com " .. count .. " packs")
+else
+    print("   ❌ ANIMATION_PACKS não encontrado!")
+end
+
+-- Verificar famousEmotes
+print("[7] Verificando famousEmotes...")
+if famousEmotes then
+    print("   ✅ famousEmotes carregado com " .. #famousEmotes .. " emotes")
+else
+    print("   ❌ famousEmotes não encontrado!")
+end
+
+-- Verificar LoopManager
+print("[8] Verificando LoopManager...")
+if LoopManager and LoopManager.Add then
+    print("   ✅ LoopManager.Add existe")
+else
+    print("   ❌ LoopManager não está funcionando!")
+end
+
+-- Verificar EventManager
+print("[9] Verificando EventManager...")
+if EventManager and EventManager.Add then
+    print("   ✅ EventManager.Add existe")
+else
+    print("   ❌ EventManager não está funcionando!")
+end
+
+-- Verificar criação das TABS
+print("[10] Aguardando criação das TABS...")
+task.wait(0.5)
+
+-- Função para testar se a UI foi criada
+pcall(function()
+    local tabs = {"AimbotTab", "VisualsTab", "JogadorTab", "OnlinesTab", "MM2Tab", "GraphicsTab", "AnimationsTab", "TeleportTab"}
+    print("[11] Verificando TABS criadas...")
+    for _, tab in ipairs(tabs) do
+        if _G[tab] then
+            print("   ✅ " .. tab .. " criada")
+        else
+            print("   ⚠️ " .. tab .. " ainda não criada (normal se estiver depois)")
+        end
+    end
+end)
+
+print("═══════════════════════════════════════════════════════════")
+print("✅ DEBUG CONCLUÍDO - Verifique as mensagens acima")
+print("═══════════════════════════════════════════════════════════")
+
 local Window = WindUI:CreateWindow({
     Title = "SCARLET HUB",
     Folder = "ScarletHub",
