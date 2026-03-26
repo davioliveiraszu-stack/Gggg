@@ -1,30 +1,5 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-print("WindUI carregou?", WindUI ~= nil)  -- Deve printar "true"
-if not WindUI then
-    error("WindUI não carregou!")
-end
 
--- ================================ DEBUG ================================
-print("✅ Script iniciado")
-
-local function testarFuncao(nome, func)
-    if type(func) == "function" then
-        print("✅ " .. nome .. " carregada com sucesso")
-    else
-        error("❌ ERRO: " .. nome .. " é " .. type(func) .. " - deveria ser function")
-    end
-end
-
--- Testar funções críticas após carregar
-task.wait(0.1)
-testarFuncao("Notify", Notify)
-testarFuncao("GetChar", GetChar)
-testarFuncao("LoopManager.Add", LoopManager.Add)
-testarFuncao("EventManager.Add", EventManager.Add)
-print("✅ Debug completo - todas as funções OK")
-
--- Se chegar aqui, o erro não é nas funções                            
 local Window = WindUI:CreateWindow({
     Title = "SCARLET HUB",
     Folder = "ScarletHub",
@@ -182,20 +157,6 @@ Players.PlayerRemoving:Connect(function()
     playerCacheDirty = true
 end)
 
--- ================================ FUNÇÃO DE PAPEL ================================
-
-local function getPapel(jogador)
-    local char = jogador.Character
-    if not char then return "Inocente"
-    if char:FindFirstChild("Knife") or char:FindFirstChild("FadeKnife") then return "Assassino"
-    if char:FindFirstChild("Gun") or char:FindFirstChild("Pistol") or char:FindFirstChild("Revolver") then return "Xerife"
-    if jogador.Backpack then
-        if jogador.Backpack:FindFirstChild("Knife") or jogador.Backpack:FindFirstChild("FadeKnife") then return "Assassino"
-        if jogador.Backpack:FindFirstChild("Gun") or jogador.Backpack:FindFirstChild("Pistol") or jogador.Backpack:FindFirstChild("Revolver") then return "Xerife"
-    end
-    return "Inocente"
-end
-
 -- ================================ VARIÁVEIS GLOBAIS ================================
 
 local AimbotEnabled = false
@@ -267,6 +228,20 @@ local autoPickupConnection = nil
 
 local LockUI
 local MiraUI
+
+-- ================================ FUNÇÃO DE PAPEL ================================
+
+local function getPapel(jogador)
+    local char = jogador.Character
+    if not char then return "Inocente"
+    if char:FindFirstChild("Knife") or char:FindFirstChild("FadeKnife") then return "Assassino"
+    if char:FindFirstChild("Gun") or char:FindFirstChild("Pistol") or char:FindFirstChild("Revolver") then return "Xerife"
+    if jogador.Backpack then
+        if jogador.Backpack:FindFirstChild("Knife") or jogador.Backpack:FindFirstChild("FadeKnife") then return "Assassino"
+        if jogador.Backpack:FindFirstChild("Gun") or jogador.Backpack:FindFirstChild("Pistol") or jogador.Backpack:FindFirstChild("Revolver") then return "Xerife"
+    end
+    return "Inocente"
+end
 
 -- ================================ ANIMAÇÕES (COM IDs CORRIGIDOS) ================================
 
@@ -412,31 +387,18 @@ local function atualizarESPHighlight()
         if next(ESPHighlights) then limparESPHighlight() end
         return
     end
-    
     if tick() - lastESPUpdate < 0.2 then return end
     lastESPUpdate = tick()
-    
     local myChar = GetChar()
     if not myChar then return end
     local myHRP = GetHRP(myChar)
     if not myHRP then return end
     local myPos = myHRP.Position
-    
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr == player then continue end
-        
-        local char = plr.Character
-        if not char then
-            if ESPHighlights[plr] then
-                pcall(function()
-                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                end)
-                ESPHighlights[plr] = nil
-            end
+        if plr == player then
         else
-            local humanoid = GetHumanoid(char)
-            if not humanoid or humanoid.Health <= 0 then
+            local char = plr.Character
+            if not char then
                 if ESPHighlights[plr] then
                     pcall(function()
                         if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
@@ -445,72 +407,79 @@ local function atualizarESPHighlight()
                     ESPHighlights[plr] = nil
                 end
             else
-                local root = GetHRP(char)
-                if not root then
+                local humanoid = GetHumanoid(char)
+                if not humanoid or humanoid.Health <= 0 then
+                    if ESPHighlights[plr] then
+                        pcall(function()
+                            if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
+                            if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
+                        end)
+                        ESPHighlights[plr] = nil
+                    end
                 else
-                    local distancia = (root.Position - myPos).Magnitude
-                    if distancia > 300 then
-                        if ESPHighlights[plr] then
-                            pcall(function()
-                                if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                                if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                            end)
-                            ESPHighlights[plr] = nil
-                        end
+                    local root = GetHRP(char)
+                    if not root then
                     else
-                        local cor = Color3.fromRGB(255, 255, 255)
-                        if ESPMM2HighlightEnabled then
-                            local papel = getPapel(plr)
-                            if papel == "Assassino" then
-                                cor = Color3.fromRGB(255, 0, 0)
-                            elseif papel == "Xerife" then
-                                cor = Color3.fromRGB(0, 100, 255)
-                            else
-                                cor = Color3.fromRGB(0, 255, 0)
-                            end
-                        end
-                        
-                        if not ESPHighlights[plr] then
-                            if char and char.Parent then
-                                local highlight = Instance.new("Highlight")
-                                highlight.Parent = char
-                                highlight.FillTransparency = 0.7
-                                highlight.OutlineTransparency = 0.3
-                                highlight.FillColor = cor
-                                highlight.OutlineColor = cor
-                                
-                                local billboard = Instance.new("BillboardGui")
-                                billboard.Name = "ESPBillboard"
-                                local head = char:FindFirstChild("Head")
-                                if head then
-                                    billboard.Parent = head
-                                else
-                                    billboard.Parent = char
-                                end
-                                billboard.Size = UDim2.new(0, 100, 0, 30)
-                                billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-                                billboard.AlwaysOnTop = true
-                                
-                                local textLabel = Instance.new("TextLabel")
-                                textLabel.Parent = billboard
-                                textLabel.Size = UDim2.new(1, 0, 1, 0)
-                                textLabel.BackgroundTransparency = 1
-                                textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                                textLabel.TextStrokeTransparency = 0.5
-                                textLabel.Font = Enum.Font.GothamBold
-                                textLabel.TextSize = 8
-                                textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
-                                
-                                ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
+                        local distancia = (root.Position - myPos).Magnitude
+                        if distancia > 500 then
+                            if ESPHighlights[plr] then
+                                pcall(function()
+                                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
+                                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
+                                end)
+                                ESPHighlights[plr] = nil
                             end
                         else
-                            local data = ESPHighlights[plr]
-                            if data.Highlight then
-                                data.Highlight.FillColor = cor
-                                data.Highlight.OutlineColor = cor
+                            local cor = Color3.fromRGB(255, 255, 255)
+                            if ESPMM2HighlightEnabled then
+                                local papel = getPapel(plr)
+                                if papel == "Assassino" then
+                                    cor = Color3.fromRGB(255, 0, 0)
+                                elseif papel == "Xerife" then
+                                    cor = Color3.fromRGB(0, 100, 255)
+                                else
+                                    cor = Color3.fromRGB(0, 255, 0)
+                                end
                             end
-                            if data.TextLabel then
-                                data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+                            if not ESPHighlights[plr] then
+                                if char and char.Parent then
+                                    local highlight = Instance.new("Highlight")
+                                    highlight.Parent = char
+                                    highlight.FillTransparency = 0.7
+                                    highlight.OutlineTransparency = 0.3
+                                    highlight.FillColor = cor
+                                    highlight.OutlineColor = cor
+                                    local billboard = Instance.new("BillboardGui")
+                                    billboard.Name = "ESPBillboard"
+                                    local head = char:FindFirstChild("Head")
+                                    if head then
+                                        billboard.Parent = head
+                                    else
+                                        billboard.Parent = char
+                                    end
+                                    billboard.Size = UDim2.new(0, 100, 0, 30)
+                                    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                                    billboard.AlwaysOnTop = true
+                                    local textLabel = Instance.new("TextLabel")
+                                    textLabel.Parent = billboard
+                                    textLabel.Size = UDim2.new(1, 0, 1, 0)
+                                    textLabel.BackgroundTransparency = 1
+                                    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                                    textLabel.TextStrokeTransparency = 0.5
+                                    textLabel.Font = Enum.Font.GothamBold
+                                    textLabel.TextSize = 8
+                                    textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+                                    ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
+                                end
+                            else
+                                local data = ESPHighlights[plr]
+                                if data.Highlight then
+                                    data.Highlight.FillColor = cor
+                                    data.Highlight.OutlineColor = cor
+                                end
+                                if data.TextLabel then
+                                    data.TextLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
+                                end
                             end
                         end
                     end
