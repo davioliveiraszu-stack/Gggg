@@ -62,39 +62,62 @@ local function GetHumanoid(char)
     return char and char:FindFirstChild("Humanoid")
 end
 
--- ================================ VARIÁVEIS GLOBAIS ================================
+-- ================================ SETTINGS (TODAS AS VARIÁVEIS BOOLEAN E NUMÉRICAS) ================================
 
-local AimbotEnabled = false
-local LockCamEnabled = false
-local ShowFPSEnabled = false
-local FPSUnlocked = false
-local backpackActive = false
-local headsitActive = false
-local spectateActive = false
-local infJumpEnabled = false
-local flingOPActive = false
-local LockUIActive = false
-local AutoFarmEnabled = false
-local HideNameEnabled = false
-local SpeedToggleEnabled = false
-local FOVCamToggleEnabled = false
-local SpinbotEnabled = false
-local headlessActive = false
-local korbloxActive = false
-local flying = false
-local ESPHighlightEnabled = false
-local ESPMM2HighlightEnabled = false
-local IgnoreWalls = false
+local Settings = {
+    -- Toggles (boolean)
+    AimbotEnabled = false,
+    LockCamEnabled = false,
+    ShowFPSEnabled = false,
+    FPSUnlocked = false,
+    backpackActive = false,
+    headsitActive = false,
+    spectateActive = false,
+    infJumpEnabled = false,
+    flingOPActive = false,
+    LockUIActive = false,
+    AutoFarmEnabled = false,
+    HideNameEnabled = false,
+    SpeedToggleEnabled = false,
+    FOVCamToggleEnabled = false,
+    SpinbotEnabled = false,
+    headlessActive = false,
+    korbloxActive = false,
+    flying = false,
+    ESPHighlightEnabled = false,
+    ESPMM2HighlightEnabled = false,
+    IgnoreWalls = false,
+    NoClipEnabled = false,
+    
+    -- Configurações numéricas
+    SelectedAimPart = "Head",
+    AimbotFOV = 90,
+    AimbotSmoothness = 5,
+    SpeedValue = 16,
+    FovCamValue = 70,
+    FlySpeed = 50,
+    lastPositionsCount = 0,
+    lastCoinCacheUpdate = 0,
+    lastFarmTime = 0,
+    lastAimbotTime = 0,
+    lastESPUpdate = 0,
+    emoteSpeed = 1,
+    
+    -- Estado do AutoFarm
+    AutoFarmMoving = false,
+    AutoFarmAtivouNoClip = false
+}
 
-local SelectedAimPart = "Head"
-local AimbotFOV = 90
-local AimbotSmoothness = 5
-local SpeedValue = 16
-local FovCamValue = 70
-local FlySpeed = 50
-local lastPositionsCount = 0
+-- ================================ VARIÁVEIS QUE NÃO PODEM IR NO SETTINGS ================================
 
+-- Tabelas e caches
 local lastPositions = {}
+local coinCache = {}
+local playerCache = {}
+local ESPHighlights = {}
+local RaycastCache = {}
+
+-- Instâncias e referências
 local FOVCircle = nil
 local FOVCircleFrame = nil
 local selectedPlayer = nil
@@ -109,21 +132,20 @@ local playerDropdown = nil
 local selectedAnimationPack = nil
 local NoClipToggle = nil
 local AutoFarmToggleElement = nil
+local LockUI = nil
+local MiraUI = nil
+local currentEmoteTrack = nil
+local coinCacheDirty = true
+local playerCacheDirty = true
+local AutoFarmTween = nil
 
-local LockUI
-local MiraUI
-
+-- Variáveis de fling
 local killAssassinActive = false
 local killSheriffActive = false
 local killAssassinConnection = nil
 local killSheriffConnection = nil
 local killAssassinPos = nil
 local killSheriffPos = nil
-local flingAllActive = false
-local flingAllQueue = {}
-local flingAllCurrentTarget = nil
-local flingAllConnection = nil
-local flingAllCheckConnection = nil
 
 -- ================================ GERENCIADOR DE EVENTOS ================================
 
@@ -138,7 +160,7 @@ function EventManager:Add(name, connection)
     self.events[name] = connection
 end
 
--- ================================ GERENCIADOR DE LOOPS ================================
+-- ================================ GERENCIADOR DE LOOPS OTIMIZADO ================================
 
 local LoopManager = {
     tasks = {},
@@ -152,7 +174,10 @@ function LoopManager:Add(name, callback)
         self.conn = RunService.Heartbeat:Connect(function(dt)
             if next(self.tasks) then
                 for taskName, func in pairs(self.tasks) do
-                    pcall(func, dt)
+                    local success, err = pcall(func, dt)
+                    if not success then
+                        warn("[LoopManager] Erro na task:", taskName, err)
+                    end
                 end
             end
         end)
@@ -167,26 +192,36 @@ function LoopManager:Remove(name)
     end
 end
 
--- ================================ CACHE DE MOEDAS ================================
-
-local coinCache = {}
-local coinCacheDirty = true
-local lastCoinCacheUpdate = 0
+-- ================================ CACHE DE MOEDAS OTIMIZADO ================================
 
 local function atualizarCacheMoedas()
     if not coinCacheDirty then return end
-    if tick() - lastCoinCacheUpdate < 2 then return end 
-    lastCoinCacheUpdate = tick()
+    if tick() - Settings.lastCoinCacheUpdate < 2 then return end 
+    Settings.lastCoinCacheUpdate = tick()
     
     coinCache = {}
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Transparency < 0.8 then
-            local nome = obj.Name:lower()
-            if nome:find("coin") or nome:find("gold") or nome:find("money") then
-                table.insert(coinCache, obj)
+    
+    local coinFolder = workspace:FindFirstChild("Coins") or workspace:FindFirstChild("Drops") or workspace:FindFirstChild("Money")
+    if coinFolder then
+        for _, obj in pairs(coinFolder:GetChildren()) do
+            if obj:IsA("BasePart") and obj.Transparency < 0.8 then
+                local nome = obj.Name:lower()
+                if nome:find("coin") or nome:find("gold") or nome:find("money") then
+                    table.insert(coinCache, obj)
+                end
+            end
+        end
+    else
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Transparency < 0.8 then
+                local nome = obj.Name:lower()
+                if nome:find("coin") or nome:find("gold") or nome:find("money") then
+                    table.insert(coinCache, obj)
+                end
             end
         end
     end
+    
     coinCacheDirty = false
 end
 
@@ -199,9 +234,6 @@ workspace.DescendantRemoving:Connect(function()
 end)
 
 -- ================================ CACHE DE PLAYERS ================================
-
-local playerCache = {}
-local playerCacheDirty = true
 
 local function atualizarPlayerCache()
     if not playerCacheDirty then return end
@@ -270,14 +302,11 @@ local ANIMATION_PACKS = {
     Knight = { Idle1 = "657595757", Idle2 = "657568135", Walk = "657552124", Run = "657564596", Jump = "658409194", Fall = "657600338", Climb = "658360781", Swim = "657560551", SwimIdle = "657557095" },
     Cartoony = { Idle1 = "742637544", Idle2 = "742638445", Walk = "742640026", Run = "742638842", Jump = "742637942", Fall = "742637151", Climb = "742636889", Swim = "742639220", SwimIdle = "742639812" },
     SuperHero = { Idle1 = "616111295", Idle2 = "616113536", Walk = "616122287", Run = "616117076", Jump = "616115533", Fall = "616114533", Climb = "616104706", Swim = "616119360", SwimIdle = "616120861" },
-    Bubbly = { Idle1 = "910004836", Idle2 = "910009958", Walk = "910034870", Run = "910025107", Jump = "910016857", Fall = "910001910", Climb = "910001910", Swim = "910028158", SwimIdle = "910030921" },
-    Robot = { Idle1 = "616088211", Idle2 = "616089559", Walk = "616095330", Run = "616091570", Jump = "616090535", Fall = "616087089", Climb = "616086039", Swim = "616092998", SwimIdle = "616094091" },
-    Stylish = { Idle1 = "616136790", Idle2 = "616138447", Walk = "616146177", Run = "616140816", Jump = "616139451", Fall = "616134815", Climb = "616133594", Swim = "616143378", SwimIdle = "616144772" },
-    Confident = { Idle1 = "1069977950", Idle2 = "1069987858", Walk = "1070017263", Run = "1070001516", Jump = "1069984524", Fall = "1069973677", Climb = "1069946257", Swim = "1070009914", SwimIdle = "1070012133" },
-    Popstar = { Idle1 = "1212900985", Idle2 = "1212900995", Walk = "1212980348", Run = "1212980338", Jump = "1212954642", Fall = "1212900995", Climb = "1213044953", Swim = "1213028291", SwimIdle = "1213028407" },
-    Princess = { Idle1 = "941003647", Idle2 = "941013098", Walk = "941028902", Run = "941015281", Jump = "941008832", Fall = "941000007", Climb = "940996062", Swim = "941018893", SwimIdle = "941025398" }
+    AdidasAura = { Idle1 = "17813099626", Idle2 = "17813103015", Walk = "17813106168", Run = "17813109006", Jump = "17813111735", Fall = "17813114546", Climb = "17813117179", Swim = "17813120145", SwimIdle = "17813123129" },
+    AdidasCommunity = { Idle1 = "15694259932", Idle2 = "15694263118", Walk = "15694268016", Run = "15694270881", Jump = "15694274374", Fall = "15694277062", Climb = "15694279596", Swim = "15694282292", SwimIdle = "15694285547" },
+    Hero = { Idle1 = "10921259953", Idle2 = "10921261812", Walk = "10921269718", Run = "10921274491", Jump = "10921263860", Fall = "10921272828", Climb = "10921257536", Swim = "10921281000", SwimIdle = "10921283326" }
 }
-
+    
 local famousEmotes = {
     {name = "Minhoca", id = "76212616246340"},
     {name = "Peixe", id = "96081038851490"},
@@ -302,7 +331,6 @@ local famousEmotes = {
 }    
 
 local currentEmoteTrack = nil
-local emoteSpeed = 1
 
 local function aplicarPack(pack)
     if not pack then return end
@@ -385,27 +413,26 @@ end
 
 -- ================================ ESP HIGHLIGHT ================================
 
-local ESPHighlights = {}
-local lastESPUpdate = 0
-
 local function limparESPHighlight()
     for player, data in pairs(ESPHighlights) do
-        pcall(function()
-            if data.Highlight then data.Highlight:Destroy() end
-            if data.Billboard then data.Billboard:Destroy() end
-        end)
+        if data.Highlight then
+            data.Highlight:Destroy()
+        end
+        if data.Billboard then
+            data.Billboard:Destroy()
+        end
     end
     ESPHighlights = {}
 end
 
 local function atualizarESPHighlight()
-    if not (ESPHighlightEnabled or ESPMM2HighlightEnabled) then
+    if not (Settings.ESPHighlightEnabled or Settings.ESPMM2HighlightEnabled) then
         if next(ESPHighlights) then limparESPHighlight() end
         return
     end
     
-    if tick() - lastESPUpdate < 1 then return end
-    lastESPUpdate = tick()
+    if tick() - Settings.lastESPUpdate < 0.8 then return end
+    Settings.lastESPUpdate = tick()
     
     local myChar = GetChar()
     if not myChar then return end
@@ -413,18 +440,18 @@ local function atualizarESPHighlight()
     if not myHRP then return end
     local myPos = myHRP.Position
     
-    local MAX_DISTANCE = 250
-    
     for _, plr in pairs(Players:GetPlayers()) do
         if plr == player then continue end
         
         local char = plr.Character
         if not char then
             if ESPHighlights[plr] then
-                pcall(function()
-                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                end)
+                if ESPHighlights[plr].Highlight then
+                    ESPHighlights[plr].Highlight:Destroy()
+                end
+                if ESPHighlights[plr].Billboard then
+                    ESPHighlights[plr].Billboard:Destroy()
+                end
                 ESPHighlights[plr] = nil
             end
             continue
@@ -433,10 +460,12 @@ local function atualizarESPHighlight()
         local humanoid = GetHumanoid(char)
         if not humanoid or humanoid.Health <= 0 then
             if ESPHighlights[plr] then
-                pcall(function()
-                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                end)
+                if ESPHighlights[plr].Highlight then
+                    ESPHighlights[plr].Highlight:Destroy()
+                end
+                if ESPHighlights[plr].Billboard then
+                    ESPHighlights[plr].Billboard:Destroy()
+                end
                 ESPHighlights[plr] = nil
             end
             continue
@@ -447,12 +476,14 @@ local function atualizarESPHighlight()
         
         local distancia = (root.Position - myPos).Magnitude
         
-        if distancia > MAX_DISTANCE then
+        if distancia > 300 then
             if ESPHighlights[plr] then
-                pcall(function()
-                    if ESPHighlights[plr].Highlight then ESPHighlights[plr].Highlight:Destroy() end
-                    if ESPHighlights[plr].Billboard then ESPHighlights[plr].Billboard:Destroy() end
-                end)
+                if ESPHighlights[plr].Highlight then
+                    ESPHighlights[plr].Highlight:Destroy()
+                end
+                if ESPHighlights[plr].Billboard then
+                    ESPHighlights[plr].Billboard:Destroy()
+                end
                 ESPHighlights[plr] = nil
             end
             continue
@@ -460,15 +491,13 @@ local function atualizarESPHighlight()
         
         if ESPHighlights[plr] and ESPHighlights[plr].Highlight then
             if ESPHighlights[plr].Highlight.Parent ~= char then
-                pcall(function()
-                    ESPHighlights[plr].Highlight:Destroy()
-                end)
+                ESPHighlights[plr].Highlight:Destroy()
                 ESPHighlights[plr] = nil
             end
         end
         
         local cor = Color3.fromRGB(255, 255, 255)
-        if ESPMM2HighlightEnabled then
+        if Settings.ESPMM2HighlightEnabled then
             local papel = getPapel(plr)
             if papel == "Assassino" then
                 cor = Color3.fromRGB(255, 0, 0)
@@ -481,23 +510,16 @@ local function atualizarESPHighlight()
         
         if not ESPHighlights[plr] then
             if char and char.Parent then
-                local success, highlight = pcall(function()
-                    local h = Instance.new("Highlight")
-                    h.Parent = char
-                    h.FillTransparency = 1
-                    h.OutlineTransparency = 0.2
-                    if ESPMM2HighlightEnabled then
-                        h.OutlineColor = cor
-                    else
-                        h.OutlineColor = Color3.fromRGB(0, 191, 255)
-                    end
-                    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    return h
-                end)
-                
-                if not success or not highlight then
-                    return
+                local h = Instance.new("Highlight")
+                h.Parent = char
+                h.FillTransparency = 1
+                h.OutlineTransparency = 0.2
+                if Settings.ESPMM2HighlightEnabled then
+                    h.OutlineColor = cor
+                else
+                    h.OutlineColor = Color3.fromRGB(0, 191, 255)
                 end
+                h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                 
                 local billboard = Instance.new("BillboardGui")
                 billboard.Name = "ESPBillboard"
@@ -517,12 +539,12 @@ local function atualizarESPHighlight()
                 textLabel.TextSize = 8
                 textLabel.Text = plr.Name .. " [" .. math.floor(distancia) .. "m]"
                 
-                ESPHighlights[plr] = {Highlight = highlight, Billboard = billboard, TextLabel = textLabel}
+                ESPHighlights[plr] = {Highlight = h, Billboard = billboard, TextLabel = textLabel}
             end
         else
             local data = ESPHighlights[plr]
             if data.Highlight then
-                if ESPMM2HighlightEnabled then
+                if Settings.ESPMM2HighlightEnabled then
                     data.Highlight.OutlineColor = cor
                 else
                     data.Highlight.OutlineColor = Color3.fromRGB(0, 191, 255)
@@ -546,14 +568,12 @@ end
 
 -- ================================ OCULTAR NOME ================================
 
-local HideNameEnabled = false
-
 local function aplicarOcultarNome(char)
     if not char then return end
     
     local humanoid = GetHumanoid(char)
     if humanoid then
-        if HideNameEnabled then
+        if Settings.HideNameEnabled then
             humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
         else
             humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
@@ -574,14 +594,14 @@ Players.PlayerAdded:Connect(function(plr)
     
     plr.CharacterAdded:Connect(function(char)
         task.wait(0.5)
-        if HideNameEnabled then
+        if Settings.HideNameEnabled then
             aplicarOcultarNome(char)
         end
     end)
     
     if plr.Character then
         task.wait(0.5)
-        if HideNameEnabled then
+        if Settings.HideNameEnabled then
             aplicarOcultarNome(plr.Character)
         end
     end
@@ -598,7 +618,7 @@ for _, plr in pairs(Players:GetPlayers()) do
         
         plr.CharacterAdded:Connect(function(char)
             task.wait(0.5)
-            if HideNameEnabled then
+            if Settings.HideNameEnabled then
                 aplicarOcultarNome(char)
             end
         end)
@@ -607,10 +627,8 @@ end
 
 -- ================================ NOCLIP ================================
 
-local NoClipEnabled = false
-
 local function aplicarNoClip()
-    if not NoClipEnabled then return end
+    if not Settings.NoClipEnabled then return end
     
     local char = GetChar()
     if char then
@@ -635,19 +653,14 @@ end
 
 -- ================================ AUTOFARM ================================
 
-local AutoFarmEnabled = false
-local AutoFarmMoving = false
-local AutoFarmTween = nil
-local AutoFarmAtivouNoClip = false
-
 local function pararAutoFarmMovimento()
     if AutoFarmTween and AutoFarmTween.PlaybackState == Enum.PlaybackState.Playing then
         AutoFarmTween:Cancel()
     end
-    AutoFarmMoving = false
+    Settings.AutoFarmMoving = false
     AutoFarmTween = nil
     
-    if AutoFarmAtivouNoClip then
+    if Settings.AutoFarmAtivouNoClip then
         local char = GetChar()
         if char then
             for _, part in pairs(char:GetDescendants()) do
@@ -656,7 +669,7 @@ local function pararAutoFarmMovimento()
                 end
             end
         end
-        AutoFarmAtivouNoClip = false
+        Settings.AutoFarmAtivouNoClip = false
     end
 end
 
@@ -667,13 +680,13 @@ local function moverParaMoeda(moeda)
     local hrp = GetHRP(char)
     if not hrp then return false end
     
-    if not NoClipEnabled then
+    if not Settings.NoClipEnabled then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
-        AutoFarmAtivouNoClip = true
+        Settings.AutoFarmAtivouNoClip = true
     end
     
     local targetPos = moeda.Position + Vector3.new(0, 2, 0)
@@ -687,11 +700,11 @@ local function moverParaMoeda(moeda)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
     
     AutoFarmTween = tween
-    AutoFarmMoving = true
+    Settings.AutoFarmMoving = true
     tween:Play()
     tween.Completed:Wait()
     task.wait(0.2)
-    AutoFarmMoving = false
+    Settings.AutoFarmMoving = false
     
     return true
 end
@@ -718,15 +731,13 @@ local function getNearestCoinNatural()
     return nearestCoin
 end
 
-local lastFarmTime = 0
-
 local function AutoFarmTaskNatural()
-    if not AutoFarmEnabled then return end
-    if AutoFarmMoving then return end
+    if not Settings.AutoFarmEnabled then return end
+    if Settings.AutoFarmMoving then return end
     if not player.Character then return end  
     
-    if tick() - lastFarmTime < 1 then return end
-    lastFarmTime = tick()
+    if tick() - Settings.lastFarmTime < 1 then return end
+    Settings.lastFarmTime = tick()
     
     local moeda = getNearestCoinNatural()
     if moeda then
@@ -735,7 +746,7 @@ local function AutoFarmTaskNatural()
 end
 
 local function AutoFarmToggle(Value)
-    AutoFarmEnabled = Value
+    Settings.AutoFarmEnabled = Value
     
     if Value then
         if NoClipToggle then
@@ -780,7 +791,7 @@ local function CanSeePlayer(target)
 end
 
 local function UpdateFOVCircle()
-    if not AimbotEnabled then
+    if not Settings.AimbotEnabled then
         if FOVCircle then
             FOVCircle:Destroy()
             FOVCircle = nil
@@ -818,8 +829,8 @@ local function UpdateFOVCircle()
     end
     
     if FOVCircleFrame then
-        FOVCircleFrame.Size = UDim2.new(0, AimbotFOV * 2, 0, AimbotFOV * 2)
-        FOVCircleFrame.Position = UDim2.new(0.5, -AimbotFOV, 0.5, -AimbotFOV)
+        FOVCircleFrame.Size = UDim2.new(0, Settings.AimbotFOV * 2, 0, Settings.AimbotFOV * 2)
+        FOVCircleFrame.Position = UDim2.new(0.5, -Settings.AimbotFOV, 0.5, -Settings.AimbotFOV)
     end
 end
 
@@ -837,7 +848,7 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
         if not char then continue end
         
         local aimPart
-        if SelectedAimPart == "Head" then
+        if Settings.SelectedAimPart == "Head" then
             aimPart = char:FindFirstChild("Head")
         else
             aimPart = GetHRP(char)
@@ -851,7 +862,7 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
         
         local targetPos = aimPart.Position
         
-        if lastPositionsCount > 100 then
+        if Settings.lastPositionsCount > 100 then
             local oldest = nil
             local oldestTime = math.huge
             for k, v in pairs(lastPositions) do
@@ -862,7 +873,7 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
             end
             if oldest then
                 lastPositions[oldest] = nil
-                lastPositionsCount = lastPositionsCount - 1
+                Settings.lastPositionsCount = Settings.lastPositionsCount - 1
             end
         end
         
@@ -876,14 +887,14 @@ local function GetClosestPlayerWithFOV(ignoreWalls)
         end
         
         lastPositions[otherPlayer] = {pos = targetPos, time = tick()}
-        lastPositionsCount = lastPositionsCount + 1
+        Settings.lastPositionsCount = Settings.lastPositionsCount + 1
         
         local predictedPos = targetPos + (velocity * 0.2)
         local screenPoint = camera:WorldToViewportPoint(predictedPos)
         if screenPoint.Z <= 0 then continue end
         
         local centerDist = (Vector2.new(screenPoint.X, screenPoint.Y) - Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)).Magnitude
-        if centerDist > AimbotFOV then continue end
+        if centerDist > Settings.AimbotFOV then continue end
         
         local realDist = (targetPos - myPos).Magnitude
         local score = (centerDist * 0.7) + (realDist * 0.3)
@@ -899,20 +910,18 @@ end
 
 -- ================================ TAREFAS DOS LOOPS ================================
 
-local lastAimbotTime = 0
-
 local function AimbotTask()
-    if not AimbotEnabled then return end
+    if not Settings.AimbotEnabled then return end
     if not camera or not player.Character then return end
     
-    if tick() - lastAimbotTime < 0.05 then return end 
-    lastAimbotTime = tick()
+    if tick() - Settings.lastAimbotTime < 0.05 then return end 
+    Settings.lastAimbotTime = tick()
     
     if GetChar() and GetHRP() then
-        local target = GetClosestPlayerWithFOV(IgnoreWalls)
+        local target = GetClosestPlayerWithFOV(Settings.IgnoreWalls)
         if target and target.Character then        
             local aimPart
-            if SelectedAimPart == "Head" then
+            if Settings.SelectedAimPart == "Head" then
                 aimPart = target.Character:FindFirstChild("Head")
             else
                 aimPart = GetHRP(target.Character)
@@ -932,7 +941,7 @@ local function AimbotTask()
                 local currentLook = camera.CFrame.LookVector
                 local targetLook = (targetPos - camera.CFrame.Position).Unit
                 local distancia = (targetPos - camera.CFrame.Position).Magnitude
-                local smoothFactor = 1 / (AimbotSmoothness * (1 + distancia / 100))
+                local smoothFactor = 1 / (Settings.AimbotSmoothness * (1 + distancia / 100))
                 local smoothLook = currentLook:Lerp(targetLook, smoothFactor)
                 
                 camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + smoothLook)
@@ -942,13 +951,13 @@ local function AimbotTask()
 end
 
 local function aplicarSpeed()
-    if not SpeedToggleEnabled then return end
+    if not Settings.SpeedToggleEnabled then return end
     
     local char = GetChar()
     if char then
         local humanoid = GetHumanoid(char)
         if humanoid then
-            humanoid.WalkSpeed = SpeedValue
+            humanoid.WalkSpeed = Settings.SpeedValue
         end
     end
 end
@@ -964,9 +973,9 @@ local function reverterSpeed()
 end
 
 local function aplicarFov()
-    if not FOVCamToggleEnabled then return end
+    if not Settings.FOVCamToggleEnabled then return end
     if camera then
-        camera.FieldOfView = FovCamValue
+        camera.FieldOfView = Settings.FovCamValue
     end
 end
 
@@ -977,7 +986,7 @@ local function reverterFov()
 end
 
 local function LockCamTask()
-    if LockCamEnabled and LockUIActive then
+    if Settings.LockCamEnabled and Settings.LockUIActive then
         local character = GetChar()
         if character and GetHRP(character) then
             local rootPart = GetHRP(character)
@@ -1068,12 +1077,12 @@ local function CriarFPSDisplay()
     return gui
 end
 
-FPSUI = CriarFPSDisplay()
+local FPSUI = CriarFPSDisplay()
 
 -- ================================ PULO INFINITO ================================
 
-jumpConnection = UserInputService.JumpRequest:Connect(function()
-    if infJumpEnabled and not UserInputService:GetFocusedTextBox() then
+local jumpConnection = UserInputService.JumpRequest:Connect(function()
+    if Settings.infJumpEnabled and not UserInputService:GetFocusedTextBox() then
         local humanoid = GetChar() and GetChar():FindFirstChildOfClass("Humanoid")
         if humanoid then
             humanoid:ChangeState("Jumping")
@@ -1115,11 +1124,11 @@ local function CreateShiftLockButton()
         if MiraUI then
             MiraUI.Enabled = active
         end
-        LockUIActive = active
+        Settings.LockUIActive = active
     end
     
     button.MouseButton1Click:Connect(function()
-        local novoEstado = not LockUIActive
+        local novoEstado = not Settings.LockUIActive
         UpdateButtonState(novoEstado)
     end)
     
@@ -1166,8 +1175,14 @@ local function startFly()
         return
     end
     
-    if bodyVelocity then pcall(function() bodyVelocity:Destroy() end) end
-    if bodyGyro then pcall(function() bodyGyro:Destroy() end) end
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
     
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Name = "FlyVelocity"
@@ -1186,7 +1201,7 @@ local function startFly()
     local cachedHumanoid = nil
     
     LoopManager:Add("FlyUpdate", function()
-        if not flying then return end
+        if not Settings.flying then return end
         if not camera or not player.Character then return end
     
         if not cachedChar or cachedChar ~= GetChar() then
@@ -1196,23 +1211,22 @@ local function startFly()
         end
         
         if not cachedChar or not cachedHumanoid or not cachedHRP then
-            if flying then
-                flying = false
+            if Settings.flying then
+                Settings.flying = false
                 StopFly()
             end
             return
         end
         
-        local camera = workspace.CurrentCamera
         local moveDir = cachedHumanoid.MoveDirection
         
-        local velocity = moveDir * FlySpeed
+        local velocity = moveDir * Settings.FlySpeed
         
         if moveDir.Magnitude > 0 then
             local lookY = camera.CFrame.LookVector.Y
             local forwardDot = moveDir:Dot(camera.CFrame.LookVector)
             local directionFix = (forwardDot >= 0) and 1 or -1
-            velocity = velocity + Vector3.new(0, lookY * FlySpeed * directionFix, 0)
+            velocity = velocity + Vector3.new(0, lookY * Settings.FlySpeed * directionFix, 0)
         end
         
         if bodyVelocity then
@@ -1226,7 +1240,7 @@ local function startFly()
 end
 
 local function StopFly()
-    flying = false
+    Settings.flying = false
     
     local char = GetChar()
     if char then
@@ -1237,12 +1251,12 @@ local function StopFly()
     end
     
     if bodyVelocity then
-        pcall(function() bodyVelocity:Destroy() end)
+        bodyVelocity:Destroy()
         bodyVelocity = nil
     end
     
     if bodyGyro then
-        pcall(function() bodyGyro:Destroy() end)
+        bodyGyro:Destroy()
         bodyGyro = nil
     end
     
@@ -1250,7 +1264,7 @@ local function StopFly()
 end
 
 local function toggleFly(state)
-    flying = state
+    Settings.flying = state
     if state then
         startFly()
     else
@@ -1261,7 +1275,7 @@ end
 -- ================================ SPINBOT ================================
 
 local function SpinbotTask()
-    if not SpinbotEnabled then return end
+    if not Settings.SpinbotEnabled then return end
     if not player.Character then return end
     
     local char = GetChar()
@@ -1274,7 +1288,7 @@ local function SpinbotTask()
 end
 
 local function toggleSpinbot(state)
-    SpinbotEnabled = state
+    Settings.SpinbotEnabled = state
     
     if state then
         LoopManager:Add("Spinbot", SpinbotTask)
@@ -1294,18 +1308,18 @@ end
 -- ================================ FUNÇÕES DE LISTA ================================
 
 local function stopAll()
-    if backpackActive then
-        backpackActive = false
+    if Settings.backpackActive then
+        Settings.backpackActive = false
         LoopManager:Remove("Backpack")
     end
     
-    if headsitActive then
-        headsitActive = false
+    if Settings.headsitActive then
+        Settings.headsitActive = false
         LoopManager:Remove("Headsit")
     end
     
-    if spectateActive then
-        spectateActive = false
+    if Settings.spectateActive then
+        Settings.spectateActive = false
         local myChar = GetChar()
         if myChar and myChar:FindFirstChild("Humanoid") then
             camera.CameraSubject = myChar.Humanoid
@@ -1313,8 +1327,8 @@ local function stopAll()
         end
     end
     
-    if flingOPActive then
-        flingOPActive = false
+    if Settings.flingOPActive then
+        Settings.flingOPActive = false
         LoopManager:Remove("FlingOP")
         
         local meuHRP = GetHRP()
@@ -1450,40 +1464,40 @@ local function toggleKorblox(state)
 end
 
 local function updateVisuals()
-    toggleHeadless(headlessActive)
-    toggleKorblox(korbloxActive)
+    toggleHeadless(Settings.headlessActive)
+    toggleKorblox(Settings.korbloxActive)
 end
 
 -- ================================ EVENTOS CENTRALIZADOS ================================
 
 EventManager:Add("CharacterAdded", player.CharacterAdded:Connect(function(char)
-    if flying then
+    if Settings.flying then
         startFly()
     end
-    if headlessActive or korbloxActive then
+    if Settings.headlessActive or Settings.korbloxActive then
         updateVisuals()
     end
     if selectedAnimationPack then
         aplicarPack(ANIMATION_PACKS[selectedAnimationPack])
     end
-    if NoClipEnabled then
+    if Settings.NoClipEnabled then
         aplicarNoClip()
     end
-    if SpeedToggleEnabled then
+    if Settings.SpeedToggleEnabled then
         aplicarSpeed()
     end
-    if FOVCamToggleEnabled then
+    if Settings.FOVCamToggleEnabled then
         aplicarFov()
     end
 end))
 
 EventManager:Add("CharacterRemoving", player.CharacterRemoving:Connect(function()
     if bodyVelocity then
-        pcall(function() bodyVelocity:Destroy() end)
+        bodyVelocity:Destroy()
         bodyVelocity = nil
     end
     if bodyGyro then
-        pcall(function() bodyGyro:Destroy() end)
+        bodyGyro:Destroy()
         bodyGyro = nil
     end
 end))
@@ -1496,8 +1510,8 @@ AimbotTab:Toggle({
     Title = "Ativar Aimbot",
     Default = false,
     Callback = function(Value)
-        AimbotEnabled = Value
-        if AimbotEnabled then
+        Settings.AimbotEnabled = Value
+        if Settings.AimbotEnabled then
             LoopManager:Add("Aimbot", AimbotTask)
         else
             LoopManager:Remove("Aimbot")
@@ -1511,7 +1525,7 @@ AimbotTab:Dropdown({
     Values = {"Head", "Torso"},
     Default = "Head",
     Callback = function(Value)
-        SelectedAimPart = Value
+        Settings.SelectedAimPart = Value
     end
 })
 
@@ -1524,7 +1538,7 @@ AimbotTab:Slider({
         Default = 90,
     },
     Callback = function(Value)
-        AimbotFOV = Value
+        Settings.AimbotFOV = Value
         UpdateFOVCircle()
     end
 })
@@ -1538,7 +1552,7 @@ AimbotTab:Slider({
         Default = 5,
     },
     Callback = function(Value)
-        AimbotSmoothness = Value
+        Settings.AimbotSmoothness = Value
     end
 })
 
@@ -1546,7 +1560,7 @@ AimbotTab:Toggle({
     Title = "Ignore Walls",
     Default = false,
     Callback = function(Value)
-        IgnoreWalls = Value
+        Settings.IgnoreWalls = Value
     end
 })
 
@@ -1559,15 +1573,15 @@ VisualsTab:Toggle({
     Default = false,
     Callback = function(Value)
         if Value then
-            if ESPMM2HighlightEnabled then
+            if Settings.ESPMM2HighlightEnabled then
                 Notify("Desative o ESP MM2 primeiro", "error")
                 return
             end
-            ESPHighlightEnabled = true
+            Settings.ESPHighlightEnabled = true
             iniciarESPHighlight()  
         else
-            ESPHighlightEnabled = false
-            if not ESPMM2HighlightEnabled then
+            Settings.ESPHighlightEnabled = false
+            if not Settings.ESPMM2HighlightEnabled then
                 pararESPHighlight()  
             end
         end
@@ -1578,7 +1592,7 @@ VisualsTab:Toggle({
     Title = "Hide @User (Clean Names)",
     Default = false,
     Callback = function(Value)
-        HideNameEnabled = Value
+        Settings.HideNameEnabled = Value
         aplicarEmTodos()
     end
 })
@@ -1587,7 +1601,7 @@ VisualsTab:Toggle({
     Title = "Show FPS",
     Default = false,
     Callback = function(Value)
-        ShowFPSEnabled = Value
+        Settings.ShowFPSEnabled = Value
         if FPSUI then
             FPSUI.Enabled = Value
         end
@@ -1600,7 +1614,7 @@ VisualsTab:Toggle({
     Title = "Headless (Visual Only)",
     Default = false,
     Callback = function(Value)
-        headlessActive = Value
+        Settings.headlessActive = Value
         toggleHeadless(Value)
     end
 })
@@ -1609,7 +1623,7 @@ VisualsTab:Toggle({
     Title = "Korblox (Visual Only)",
     Default = false,
     Callback = function(Value)
-        korbloxActive = Value
+        Settings.korbloxActive = Value
         toggleKorblox(Value)
     end
 })
@@ -1637,7 +1651,7 @@ JogadorTab:Slider({
         Default = 50,
     },
     Callback = function(Value)
-        FlySpeed = Value
+        Settings.FlySpeed = Value
     end
 })
 
@@ -1645,7 +1659,7 @@ JogadorTab:Toggle({
     Title = "Speed",
     Default = false,
     Callback = function(Value)
-        SpeedToggleEnabled = Value
+        Settings.SpeedToggleEnabled = Value
         if Value then
             aplicarSpeed()
         else
@@ -1663,8 +1677,8 @@ JogadorTab:Slider({
         Default = 16,
     },
     Callback = function(Value)
-        SpeedValue = Value
-        if SpeedToggleEnabled then
+        Settings.SpeedValue = Value
+        if Settings.SpeedToggleEnabled then
             aplicarSpeed()
         end
     end
@@ -1674,7 +1688,7 @@ JogadorTab:Toggle({
     Title = "FOV Cam",
     Default = false,
     Callback = function(Value)
-        FOVCamToggleEnabled = Value
+        Settings.FOVCamToggleEnabled = Value
         if Value then
             aplicarFov()
         else
@@ -1692,8 +1706,8 @@ JogadorTab:Slider({
         Default = 70,
     },
     Callback = function(Value)
-        FovCamValue = Value
-        if FOVCamToggleEnabled then
+        Settings.FovCamValue = Value
+        if Settings.FOVCamToggleEnabled then
             aplicarFov()
         end
     end
@@ -1703,7 +1717,7 @@ JogadorTab:Toggle({
     Title = "Infinite Jump",
     Default = false,
     Callback = function(Value)
-        infJumpEnabled = Value
+        Settings.infJumpEnabled = Value
     end
 })
 
@@ -1711,13 +1725,13 @@ NoClipToggle = JogadorTab:Toggle({
     Title = "NoClip",
     Default = false,
     Callback = function(Value)
-        if AutoFarmEnabled then
+        if Settings.AutoFarmEnabled then
             Notify("AutoFarm ativo! Desative o AutoFarm primeiro.", "error")
-            NoClipToggle:Set(NoClipEnabled)
+            NoClipToggle:Set(Settings.NoClipEnabled)
             return
         end
         
-        NoClipEnabled = Value
+        Settings.NoClipEnabled = Value
         
         if Value then
             aplicarNoClip()
@@ -1747,8 +1761,8 @@ JogadorTab:Toggle({
     Title = "Lock Cam",
     Default = false,
     Callback = function(Value)
-        LockCamEnabled = Value
-        if LockCamEnabled then
+        Settings.LockCamEnabled = Value
+        if Settings.LockCamEnabled then
             CreateShiftLockButton()
             CriarMira()
             LoopManager:Add("LockCam", LockCamTask)
@@ -1833,11 +1847,6 @@ JogadorTab:Button({
         end
         
         local posicaoAtual = hrp.CFrame
-        local flyEstavaAtivo = flying
-        
-        if flyEstavaAtivo then
-            toggleFly(false)
-        end
         
         local humanoid = GetHumanoid(char)
         if humanoid then
@@ -1845,16 +1854,10 @@ JogadorTab:Button({
         end
         
         local newChar = player.CharacterAdded:Wait()
-        task.wait(0.1)
         
         local newHRP = GetHRP(newChar)
         if newHRP then
             newHRP.CFrame = posicaoAtual
-        end
-        
-        if flyEstavaAtivo then
-            task.wait(0.2)
-            toggleFly(true)
         end
     end
 })
@@ -1925,7 +1928,7 @@ OnlinesTab:Button({
         if char and char:FindFirstChild("Humanoid") then
             camera.CameraSubject = char.Humanoid
             camera.CameraType = Enum.CameraType.Custom
-            spectateActive = true
+            Settings.spectateActive = true
         else
             Notify("Jogador sem personagem", "error")
         end
@@ -1960,17 +1963,17 @@ OnlinesTab:Button({
             return
         end
         
-        if backpackActive then
+        if Settings.backpackActive then
             stopAll()
             Notify("Backpack desativado", "info")
             return
         end
         
         stopAll()
-        backpackActive = true
+        Settings.backpackActive = true
         
         LoopManager:Add("Backpack", function()
-            if not backpackActive or not selectedPlayer or not selectedPlayer.Character then
+            if not Settings.backpackActive or not selectedPlayer or not selectedPlayer.Character then
                 LoopManager:Remove("Backpack")
                 return
             end
@@ -1997,17 +2000,17 @@ OnlinesTab:Button({
             return
         end
         
-        if headsitActive then
+        if Settings.headsitActive then
             stopAll()
             Notify("Headsit desativado", "info")
             return
         end
         
         stopAll()
-        headsitActive = true
+        Settings.headsitActive = true
         
         LoopManager:Add("Headsit", function()
-            if not headsitActive or not selectedPlayer or not selectedPlayer.Character then
+            if not Settings.headsitActive or not selectedPlayer or not selectedPlayer.Character then
                 LoopManager:Remove("Headsit")
                 return
             end
@@ -2041,7 +2044,7 @@ OnlinesTab:Button({
             return
         end
         
-        if flingOPActive then
+        if Settings.flingOPActive then
             stopAll()
             Notify("Fling OP desativado", "info")
             return
@@ -2065,14 +2068,14 @@ OnlinesTab:Button({
             return
         end
         
-        flingOPActive = true
+        Settings.flingOPActive = true
         posicaoOriginal = myHRP.CFrame
         
         local direcaoZ = 1
         local contador = 0
         
         LoopManager:Add("FlingOP", function()
-            if not flingOPActive then
+            if not Settings.flingOPActive then
                 LoopManager:Remove("FlingOP")
                 return
             end
@@ -2097,7 +2100,7 @@ OnlinesTab:Button({
             
             local forcaX = math.random(-500, 500)
             local forcaY = math.random(400, 900)
-            local forcaZ = math.random(500, 800) * direcaoZ 
+            local forcaZ = math.random(500, 800) * direcaoZ
             
             myHRP.AssemblyLinearVelocity = Vector3.new(forcaX, forcaY, forcaZ)
             myHRP.AssemblyAngularVelocity = Vector3.new(
@@ -2125,12 +2128,6 @@ OnlinesTab:Button({
                     yOffset,
                     math.random(-1, 1)
                 ) * randomAngle
-            
-            targetHRP.AssemblyLinearVelocity = Vector3.new(
-                math.random(-200, 200),
-                math.random(300, 600),
-                math.random(-200, 200)
-            )
         end)
     end
 })
@@ -2138,7 +2135,7 @@ OnlinesTab:Button({
 OnlinesTab:Button({
     Title = "Stop",
     Callback = function()
-        local temAcaoAtiva = backpackActive or headsitActive or spectateActive or flingOPActive        
+        local temAcaoAtiva = Settings.backpackActive or Settings.headsitActive or Settings.spectateActive or Settings.flingOPActive        
         if not temAcaoAtiva then
             Notify("Nenhuma ação ativa na aba Onlines para parar!", "info")
             return
@@ -2158,15 +2155,15 @@ MM2Tab:Toggle({
     Default = false,
     Callback = function(Value)
         if Value then
-            if ESPHighlightEnabled then
+            if Settings.ESPHighlightEnabled then
                 Notify("Desative o outro ESP primeiro", "error")
                 return
             end
-            ESPMM2HighlightEnabled = true
+            Settings.ESPMM2HighlightEnabled = true
             iniciarESPHighlight()
         else
-            ESPMM2HighlightEnabled = false
-            if not ESPHighlightEnabled then
+            Settings.ESPMM2HighlightEnabled = false
+            if not Settings.ESPHighlightEnabled then
                 pararESPHighlight()
             end
         end
@@ -2473,237 +2470,6 @@ MM2Tab:Button({
     end
 })
 
-local function pararFlingAll()
-    if flingAllActive then
-        flingAllActive = false
-        flingAllQueue = {}
-        flingAllCurrentTarget = nil
-        if flingAllConnection then
-            pcall(function() flingAllConnection:Disconnect() end)
-            flingAllConnection = nil
-        end
-        if flingAllCheckConnection then
-            pcall(function() flingAllCheckConnection:Disconnect() end)
-            flingAllCheckConnection = nil
-        end
-        LoopManager:Remove("FlingAll")
-        Notify("Jogar todos longe desativado", "info")
-    end
-end
-
-local function flingarJogador(alvo)
-    if not alvo or not alvo.Character then
-        processarProximoAlvo()
-        return false
-    end
-    
-    local targetChar = alvo.Character
-    local myChar = GetChar()
-    
-    if not targetChar or not myChar then
-        processarProximoAlvo()
-        return false
-    end
-    
-    local targetHRP = GetHRP(targetChar)
-    local myHRP = GetHRP(myChar)
-    
-    if not targetHRP or not myHRP then
-        processarProximoAlvo()
-        return false
-    end
-    
-    local humanoid = GetHumanoid(targetChar)
-    if not humanoid or humanoid.Health <= 0 then
-        processarProximoAlvo()
-        return false
-    end
-    
-    flingAllCurrentTarget = alvo
-    
-    local posicaoInicial = targetHRP.Position
-    local flingTimeout = tick() + 5
-    
-    if flingAllLoopRunning then
-        LoopManager:Remove("FlingAll")
-        flingAllLoopRunning = false
-    end
-    
-    LoopManager:Add("FlingAll", function()
-        if not flingAllActive or not flingAllCurrentTarget then
-            if flingAllLoopRunning then
-                LoopManager:Remove("FlingAll")
-                flingAllLoopRunning = false
-            end
-            return
-        end
-        
-        if tick() > flingTimeout then
-            processarProximoAlvo()
-            return
-        end
-        
-        local currentTargetChar = flingAllCurrentTarget.Character
-        if not currentTargetChar then
-            processarProximoAlvo()
-            return
-        end
-        
-        local targetHRP = GetHRP(currentTargetChar)
-        local myHRP = GetHRP()
-        
-        if not targetHRP or not myHRP then
-            return
-        end
-        
-        local humanoid = GetHumanoid(currentTargetChar)
-        if not humanoid or humanoid.Health <= 0 then
-            processarProximoAlvo()
-            return
-        end
-        
-        local distanciaAtual = (targetHRP.Position - posicaoInicial).Magnitude
-        if distanciaAtual > 100 then
-            processarProximoAlvo()
-            return
-        end
-        
-        myHRP.AssemblyLinearVelocity = Vector3.new(
-            math.random(-500, 500),
-            math.random(400, 900),
-            math.random(-500, 500)
-        )
-        
-        myHRP.AssemblyAngularVelocity = Vector3.new(
-            math.random(-30, 30),
-            math.random(-30, 30),
-            math.random(-30, 30)
-        )
-        
-        myHRP.RotVelocity = Vector3.new(
-            math.random(8000, 12000),
-            math.random(8000, 12000),
-            math.random(8000, 12000)
-        )
-            
-        local randomAngle = CFrame.Angles(
-            math.rad(math.random(-360, 360)),
-            math.rad(math.random(-360, 360)),
-            math.rad(math.random(-360, 360))
-        )
-        
-        local yOffset = math.random(-6, 6)
-        
-        myHRP.CFrame = targetHRP.CFrame *
-            CFrame.new(
-                math.random(-1, 1),
-                yOffset,
-                math.random(-1, 1)
-            ) * randomAngle
-        
-        targetHRP.AssemblyLinearVelocity = Vector3.new(
-            math.random(-200, 200),
-            math.random(300, 600),
-            math.random(-200, 200)
-        )
-    end)
-    flingAllLoopRunning = true
-    
-    local function onTargetDied()
-        if flingAllActive then
-            task.wait(0.5)
-            processarProximoAlvo()
-        end
-    end
-    
-    if flingAllConnection then
-        pcall(function() flingAllConnection:Disconnect() end)
-    end
-    flingAllConnection = humanoid.Died:Connect(onTargetDied)
-    
-    return true
-end
-
-local flingAllLoopRunning = false
-
-local function processarProximoAlvo()
-    if not flingAllActive then
-        return
-    end
-    
-    if flingAllLoopRunning then
-        LoopManager:Remove("FlingAll")
-        flingAllLoopRunning = false
-    end
-    
-    if flingAllConnection then
-        pcall(function() flingAllConnection:Disconnect() end)
-        flingAllConnection = nil
-    end
-    if flingAllCheckConnection then
-        pcall(function() flingAllCheckConnection:Disconnect() end)
-        flingAllCheckConnection = nil
-    end
-    
-    if #flingAllQueue == 0 then
-        pararFlingAll()
-        Notify("Todos os jogadores foram lançados!", "success")
-        return
-    end
-    
-    local proximo = table.remove(flingAllQueue, 1)
-    flingarJogador(proximo)
-end
-
-MM2Tab:Button({
-    Title = "Jogar Todos Longe",
-    Callback = function()
-        if flingAllActive then
-            pararFlingAll()
-            return
-        end
-        
-        local myChar = GetChar()
-        if not myChar then
-            Notify("Personagem não encontrado", "error")
-            return
-        end
-        
-        local myHRP = GetHRP(myChar)
-        if not myHRP then
-            Notify("HumanoidRootPart não encontrado", "error")
-            return
-        end
-        
-        local myPos = myHRP.Position
-        flingAllQueue = {}
-        
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player then
-                local char = plr.Character
-                if char then
-                    local hrp = GetHRP(char)
-                    if hrp then
-                        local distancia = (hrp.Position - myPos).Magnitude
-                        if distancia <= 300 then
-                            table.insert(flingAllQueue, plr)
-                        end
-                    end
-                end
-            end
-        end
-        
-        if #flingAllQueue == 0 then
-            Notify("Nenhum jogador próximo encontrado", "error")
-            return
-        end
-        
-        flingAllActive = true
-        
-        processarProximoAlvo()
-    end
-})
-
 local function monitorarAssassino()
     local assassino = encontrarPorPapel("Assassino")
     if assassino and assassino.Character then
@@ -2768,8 +2534,7 @@ AutoFarmToggleElement = MM2Tab:Toggle({
     Title = "Auto Farm Moedas",
     Default = false,
     Callback = function(Value)
-        if NoClipEnabled and Value then
-            Notify("NoClip manual está ativo! Desative o NoClip primeiro.", "error")
+        if Settings.NoClipEnabled and Value then
             AutoFarmToggleElement:Set(false)
             return
         end
@@ -2824,13 +2589,9 @@ GraphicsTab:Toggle({
     Default = false,
     Callback = function(Value)
         FPSUnlocked = Value
-        pcall(function()
-            if Value then
-                setfpscap(999)
-            else
-                setfpscap(60)
-            end
-        end)
+        if setfpscap then
+            setfpscap(Value and 120 or 60)
+        end
     end
 })
 
@@ -2852,7 +2613,7 @@ AnimationsTab:Dropdown({
     Callback = function(Value)
         for _, emote in pairs(famousEmotes) do
             if emote.name == Value then
-                playEmote(emote.id, emoteSpeed)
+                playEmote(emote.id, Settings.emoteSpeed)
                 break
             end
         end
@@ -2875,9 +2636,9 @@ AnimationsTab:Slider({
         Default = 1,
     },
     Callback = function(Value)
-        emoteSpeed = Value
+        Settings.emoteSpeed = Value
         if currentEmoteTrack then
-            currentEmoteTrack:AdjustSpeed(emoteSpeed)
+            currentEmoteTrack:AdjustSpeed(Settings.emoteSpeed)
         end
     end
 })
@@ -2888,10 +2649,10 @@ AnimationsTab:Dropdown({
     Title = "Animation Packs",
     Values = {
         "Sneaky", "Patrol", "Ghost", "AdidasSports",
-        "Levitation", "Werewolf", "Vampire", "Pirate", "Zombie",
-        "Astronaut", "Ninja", "Mage", "Elder", "Toy",
-        "Knight", "Cartoony", "SuperHero", "Bubbly", "Robot",
-        "Stylish", "Confident", "Popstar", "Princess"
+        "Levitation", "Werewolf", "Vampire", "Pirate", 
+        "Zombie", "Astronaut", "Ninja", "Mage", 
+        "Elder", "Toy", "Knight", "Cartoony", 
+        "SuperHero", "Adidas Aura", "AdidasCommunity", "Hero"        
     },
     Default = "Nenhum",
     Callback = function(Value)
