@@ -471,7 +471,9 @@ end
 
 local function clearESP(plr)
     local data = ESPHighlights[plr]
+    
     if data then
+        
         if data.Highlight then
             data.Highlight:Destroy()
             data.Highlight = nil
@@ -503,26 +505,43 @@ local function clearESP(plr)
             end
             data.SkeletonLines = nil
         end
-
+        
         local char = plr.Character
+        
         if char then
+            
             for _, v in pairs(char:GetDescendants()) do
+                
                 if v:IsA("Highlight") then
                     v:Destroy()
                 end
 
-                if v:IsA("BillboardGui") and v.Name == "ESP_Photo" then
-                    v:Destroy()
+                if v:IsA("BillboardGui") then
+                    
+                    if v.Name == "ESP_Photo"
+                    or v.Name == "ESP_Name"
+                    or v.Name == "ESP_Distance" then
+                        
+                        v:Destroy()
+                        
+                    end
+                    
                 end
+                
             end
+            
         end
+        
         PhotoTargets[plr] = nil
         ESPHighlights[plr] = nil
+        
     end
 end
 
 local function clearAllESP()
+    
     for plr, data in pairs(ESPHighlights) do
+        
         if data.Highlight then
             pcall(function()
                 data.Highlight:Destroy()
@@ -548,37 +567,62 @@ local function clearAllESP()
         end
         
         if data.SkeletonLines then
+            
             for _, line in pairs(data.SkeletonLines) do
+                
                 if line then
+                    
                     pcall(function()
                         line:Remove()
                     end)
+                    
                 end
+                
             end
-        end        
+            
+        end
+        
         PhotoTargets[plr] = nil
+        
     end
 
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then            
-            local char = plr.Character            
-            if char then                
-                for _, v in pairs(char:GetDescendants()) do                    
+        
+        if plr ~= player then
+            
+            local char = plr.Character
+            
+            if char then
+                
+                for _, v in pairs(char:GetDescendants()) do
+                    
                     if v:IsA("Highlight") then
                         v:Destroy()
                     end
                     
                     if v:IsA("BillboardGui") then
-                        if v.Name == "ESP_Photo" then
+                        
+                        if v.Name == "ESP_Photo"
+                        or v.Name == "ESP_Name"
+                        or v.Name == "ESP_Distance" then
+                            
                             v:Destroy()
+                            
                         end
-                    end                    
-                end                
+                        
+                    end
+                    
+                end
+                
             end
+            
         end
+        
     end
+
     ESPHighlights = {}
     PhotoTargets = {}
+    
 end
 
 local function atualizarESP()
@@ -594,23 +638,23 @@ local function atualizarESP()
     local hasSkeleton = Settings.ESPSkeleton
     local isRainbow = Settings.ESPRainbow
     
-    if not hasHighlight and not hasName and not hasDistance and not hasPhoto and not hasSkeleton then
-        if next(ESPHighlights) then clearAllESP() end
-        return
-    end
-    
     local myChar = GetChar()
     if not myChar then return end
+    
     local myHRP = GetHRP(myChar)
     if not myHRP then return end
+    
     local myPos = myHRP.Position
     
     for _, plr in pairs(Players:GetPlayers()) do
         if plr == player then continue end
         
         local char = plr.Character
+        
         if not char then
-            if ESPHighlights[plr] then clearESP(plr) end
+            if ESPHighlights[plr] then
+                clearESP(plr)
+            end
             continue
         end
         
@@ -619,257 +663,219 @@ local function atualizarESP()
         local head = char:FindFirstChild("Head")
         
         if not humanoid or humanoid.Health <= 0 or not root or not head then
-            if ESPHighlights[plr] then clearESP(plr) end
+            if ESPHighlights[plr] then
+                clearESP(plr)
+            end
             continue
         end
         
         humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
         
         local distancia = (root.Position - myPos).Magnitude
+        
         if distancia > 500 then
-            if ESPHighlights[plr] then clearESP(plr) end
+            if ESPHighlights[plr] then
+                clearESP(plr)
+            end
             continue
         end
         
-        if not ESPHighlights[plr] then
-            local data = {}
-            
-            if hasHighlight then
-                local h = Instance.new("Highlight")
-                h.Parent = char
-                h.FillTransparency = 1
-                h.OutlineTransparency = 0
-                h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                
-                if isRainbow then
-                    h.OutlineColor = GetRainbowColor(0)
-                else
-                    h.OutlineColor = Color3.fromRGB(255, 255, 255)
-                end
-                data.Highlight = h
-            end
-            
-            if hasName then
-                local nameBillboard = Instance.new("BillboardGui")
-                nameBillboard.Parent = head
-                nameBillboard.Size = UDim2.new(0, 140, 0, 25)
-                nameBillboard.StudsOffset = Vector3.new(0, 2.0, 0)
-                nameBillboard.AlwaysOnTop = true
-                
-                local nameLabel = Instance.new("TextLabel", nameBillboard)
-                nameLabel.Size = UDim2.new(1, 0, 1, 0)
-                nameLabel.BackgroundTransparency = 1
-                nameLabel.TextStrokeTransparency = 0.3
-                nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-                nameLabel.Font = Enum.Font.GothamBold
-                nameLabel.TextSize = 11
-                nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-                nameLabel.Text = plr.Name
-                nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
-                
-                data.NameBillboard = nameBillboard
-                data.NameLabel = nameLabel
-            end
-            
-            if hasDistance then
-                local distBillboard = Instance.new("BillboardGui")
-                distBillboard.Parent = root
-                distBillboard.Size = UDim2.new(0, 70, 0, 22)
-                distBillboard.StudsOffset = Vector3.new(0, -5.0, 0)
-                distBillboard.AlwaysOnTop = true
-                
-                local distLabel = Instance.new("TextLabel", distBillboard)
-                distLabel.Size = UDim2.new(1, 0, 1, 0)
-                distLabel.BackgroundTransparency = 1
-                distLabel.TextStrokeTransparency = 0.3
-                distLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-                distLabel.Font = Enum.Font.GothamBold
-                distLabel.TextSize = 10
-                distLabel.TextXAlignment = Enum.TextXAlignment.Center
-                distLabel.TextColor3 = Color3.fromRGB(255,255,255)
-                distLabel.Text = math.floor(distancia) .. "m"
-                
-                data.DistBillboard = distBillboard
-                data.DistLabel = distLabel
-                data.RootRef = root
-            end
-            
-            if hasPhoto then
-                local photoBillboard = Instance.new("BillboardGui")
-                photoBillboard.Name = "ESP_Photo"
-                photoBillboard.Parent = char
-                photoBillboard.Adornee = head
-                photoBillboard.Size = UDim2.new(0, 25, 0, 25)
-                photoBillboard.StudsOffset = Vector3.new(0, 8.0, 0)
-                photoBillboard.AlwaysOnTop = true
-                
-                local img = Instance.new("ImageLabel", photoBillboard)
-                img.Size = UDim2.new(1, 0, 1, 0)
-                img.BackgroundTransparency = 1
-                img.Image = getProfileImage(plr)
-                
-                local corner = Instance.new("UICorner", img)
-                corner.CornerRadius = UDim.new(1, 0)
-                
-                local stroke = Instance.new("UIStroke", img)
-                stroke.Thickness = 1.5
-                stroke.Color = Color3.fromRGB(255,255,255)
-                stroke.Transparency = 0.3
-                
-                data.PhotoBillboard = photoBillboard
-                
-                PhotoTargets[plr] = {
-                    head = head,
-                    size = 25,
-                    offset = 8.0
-                }
-            end
-            
-            if hasSkeleton then
-                data.SkeletonLines = {}
-                for i = 1, 5 do
-                    local line = Drawing.new("Line")
-                    line.Color = Color3.fromRGB(255,255,255)
-                    line.Thickness = 2
-                    line.Visible = false
-                    data.SkeletonLines[i] = line
-                end
-                data.Char = char
-                data.HeadRef = head
-                data.RootRef = root
-            end
-            
+        local data = ESPHighlights[plr]
+        
+        if not data then
+            data = {}
             ESPHighlights[plr] = data
-        else
-            local data = ESPHighlights[plr]
-		    if data.RootRef ~= root then
-			    clearESP(plr)
-			    continue
-			end
-		    
-			if data.PhotoBillboard then
-			    if data.PhotoBillboard.Parent ~= char then
-			        data.PhotoBillboard:Destroy()
-			        data.PhotoBillboard = nil
-			    end
-			end
-			
-		    if data.PhotoBillboard then
-		        local photoHead = data.PhotoBillboard.Adornee
-		        if not photoHead or not photoHead.Parent then
-		            data.PhotoBillboard:Destroy()
-		            data.PhotoBillboard = nil
-		            PhotoTargets[plr] = nil
-		        end
-		    end
-		    
-		    if not hasPhoto then
-			    if data.PhotoBillboard then
-			        data.PhotoBillboard:Destroy()
-			        data.PhotoBillboard = nil
-			    end
-			    if char then
-			        for _, v in pairs(char:GetChildren()) do
-			            if v:IsA("BillboardGui") and v.Name == "ESP_Photo" then
-			                v:Destroy()
-			            end
-			        end
-			    end
-			    PhotoTargets[plr] = nil
-			end
-		    
-			if hasName and not data.NameBillboard and head then
-			    local nameBillboard = Instance.new("BillboardGui")
-			    nameBillboard.Parent = head
-			    nameBillboard.Size = UDim2.new(0, 140, 0, 25)
-			    nameBillboard.StudsOffset = Vector3.new(0, 2.0, 0)
-			    nameBillboard.AlwaysOnTop = true
-			    
-			    local nameLabel = Instance.new("TextLabel", nameBillboard)
-			    nameLabel.Size = UDim2.new(1, 0, 1, 0)
-			    nameLabel.BackgroundTransparency = 1
-			    nameLabel.TextStrokeTransparency = 0.3
-			    nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-			    nameLabel.Font = Enum.Font.GothamBold
-			    nameLabel.TextSize = 11
-			    nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-			    nameLabel.Text = plr.Name
-			    nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
-			    
-			    data.NameBillboard = nameBillboard
-			    data.NameLabel = nameLabel
-			end
-			
-			if not hasName and data.NameBillboard then
-			    data.NameBillboard:Destroy()
-			    data.NameBillboard = nil
-			    data.NameLabel = nil
-			end
-
-		    if hasPhoto and not data.PhotoBillboard and head then
-		        local photoBillboard = Instance.new("BillboardGui")
-		        photoBillboard.Name = "ESP_Photo"
-		        photoBillboard.Parent = char
-		        photoBillboard.Adornee = head
-		        photoBillboard.Size = UDim2.new(0, 25, 0, 25)
-		        photoBillboard.StudsOffset = Vector3.new(0, 8.0, 0)
-		        photoBillboard.AlwaysOnTop = true
-		        
-		        local img = Instance.new("ImageLabel", photoBillboard)
-		        img.Size = UDim2.new(1, 0, 1, 0)
-		        img.BackgroundTransparency = 1
-		        img.Image = getProfileImage(plr)
-		        
-		        local corner = Instance.new("UICorner", img)
-		        corner.CornerRadius = UDim.new(1, 0)
-		        
-		        local stroke = Instance.new("UIStroke", img)
-		        stroke.Thickness = 1.5
-		        stroke.Color = Color3.fromRGB(255,255,255)
-		        stroke.Transparency = 0.3
-		        
-		        data.PhotoBillboard = photoBillboard
-		        
-		        PhotoTargets[plr] = {
-		            head = head,
-		            size = 25,
-		            offset = 8.0
-		        }
-		    end
-		    
-		    if hasHighlight and not data.Highlight then
-		        local h = Instance.new("Highlight")
-		        h.Parent = char
-		        h.FillTransparency = 1
-		        h.OutlineTransparency = 0
-		        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		        
-		        if isRainbow then
-		            h.OutlineColor = GetRainbowColor(0)
-		        else
-		            h.OutlineColor = Color3.fromRGB(255, 255, 255)
-		        end
-		        data.Highlight = h
-		    end
-		    
-		    if not hasHighlight and data.Highlight then
-		        data.Highlight:Destroy()
-		        data.Highlight = nil
-		    end
-		    
-		    if data.DistLabel and data.RootRef and data.RootRef.Parent then
-		        local newDist = (myPos - data.RootRef.Position).Magnitude
-		        data.DistLabel.Text = math.floor(newDist) .. "m"
-		    end
-		    
-		    if data.Highlight then
-		        if isRainbow then
-		            data.Highlight.OutlineColor = GetRainbowColor(0)
-		        else
-		            data.Highlight.OutlineColor = Color3.fromRGB(255,255,255)
-		        end
-		    end
-		end
+        end
+        
+        -- ROOT TROCOU (respawn)
+        if data.RootRef and data.RootRef ~= root then
+            clearESP(plr)
+            data = {}
+            ESPHighlights[plr] = data
+        end
+        
+        ------------------------------------------------
+        -- HIGHLIGHT
+        ------------------------------------------------
+        
+        if hasHighlight and not data.Highlight then
+            
+            local h = Instance.new("Highlight")
+            h.Parent = char
+            h.FillTransparency = 1
+            h.OutlineTransparency = 0
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            
+            if isRainbow then
+                h.OutlineColor = GetRainbowColor(0)
+            else
+                h.OutlineColor = Color3.fromRGB(255,255,255)
+            end
+            
+            data.Highlight = h
+            
+        elseif not hasHighlight and data.Highlight then
+            
+            data.Highlight:Destroy()
+            data.Highlight = nil
+            
+        end
+        
+        if data.Highlight then
+            if isRainbow then
+                data.Highlight.OutlineColor = GetRainbowColor(0)
+            end
+        end
+        
+        ------------------------------------------------
+        -- NAME
+        ------------------------------------------------
+        
+        if hasName and not data.NameBillboard then
+            
+            local nameBillboard = Instance.new("BillboardGui")
+            nameBillboard.Name = "ESP_Name"
+            nameBillboard.Parent = head
+            nameBillboard.Size = UDim2.new(0,140,0,25)
+            nameBillboard.StudsOffset = Vector3.new(0,2,0)
+            nameBillboard.AlwaysOnTop = true
+            
+            local nameLabel = Instance.new("TextLabel", nameBillboard)
+            nameLabel.Size = UDim2.new(1,0,1,0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.TextStrokeTransparency = 0.3
+            nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.TextSize = 11
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+            nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
+            nameLabel.Text = plr.Name
+            
+            data.NameBillboard = nameBillboard
+            data.NameLabel = nameLabel
+            
+        elseif not hasName and data.NameBillboard then
+            
+            data.NameBillboard:Destroy()
+            data.NameBillboard = nil
+            data.NameLabel = nil
+            
+        end
+        
+        ------------------------------------------------
+        -- DISTANCE
+        ------------------------------------------------
+        
+        if hasDistance and not data.DistBillboard then
+            
+            local distBillboard = Instance.new("BillboardGui")
+            distBillboard.Name = "ESP_Distance"
+            distBillboard.Parent = root
+            distBillboard.Size = UDim2.new(0,70,0,22)
+            distBillboard.StudsOffset = Vector3.new(0,-5,0)
+            distBillboard.AlwaysOnTop = true
+            
+            local distLabel = Instance.new("TextLabel", distBillboard)
+            distLabel.Size = UDim2.new(1,0,1,0)
+            distLabel.BackgroundTransparency = 1
+            distLabel.TextStrokeTransparency = 0.3
+            distLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+            distLabel.Font = Enum.Font.GothamBold
+            distLabel.TextSize = 10
+            distLabel.TextXAlignment = Enum.TextXAlignment.Center
+            distLabel.TextColor3 = Color3.fromRGB(255,255,255)
+            
+            data.DistBillboard = distBillboard
+            data.DistLabel = distLabel
+            data.RootRef = root
+            
+        elseif not hasDistance and data.DistBillboard then
+            
+            data.DistBillboard:Destroy()
+            data.DistBillboard = nil
+            data.DistLabel = nil
+            
+        end
+        
+        if data.DistLabel and data.RootRef then
+            
+            local newDist =
+                (myPos - data.RootRef.Position).Magnitude
+            
+            data.DistLabel.Text =
+                math.floor(newDist) .. "m"
+            
+        end
+        
+        ------------------------------------------------
+        -- PHOTO
+        ------------------------------------------------
+        
+        if hasPhoto and not data.PhotoBillboard then
+            
+            local photoBillboard = Instance.new("BillboardGui")
+            photoBillboard.Name = "ESP_Photo"
+            photoBillboard.Parent = char
+            photoBillboard.Adornee = head
+            photoBillboard.Size = UDim2.new(0,25,0,25)
+            photoBillboard.StudsOffset = Vector3.new(0,8,0)
+            photoBillboard.AlwaysOnTop = true
+            
+            local img = Instance.new("ImageLabel", photoBillboard)
+            img.Size = UDim2.new(1,0,1,0)
+            img.BackgroundTransparency = 1
+            img.Image = getProfileImage(plr)
+            
+            local corner = Instance.new("UICorner", img)
+            corner.CornerRadius = UDim.new(1,0)
+            
+            local stroke = Instance.new("UIStroke", img)
+            stroke.Thickness = 1.5
+            stroke.Color = Color3.fromRGB(255,255,255)
+            stroke.Transparency = 0.3
+            
+            data.PhotoBillboard = photoBillboard
+            
+            PhotoTargets[plr] = {
+                head = head,
+                size = 25,
+                offset = 8
+            }
+            
+        elseif not hasPhoto and data.PhotoBillboard then
+            
+            data.PhotoBillboard:Destroy()
+            data.PhotoBillboard = nil
+            PhotoTargets[plr] = nil
+            
+        end
+        
+        ------------------------------------------------
+        -- SKELETON (criação só)
+        ------------------------------------------------
+        
+        if hasSkeleton and not data.SkeletonLines then
+            
+            data.SkeletonLines = {}
+            
+            for i = 1,5 do
+                
+                local line = Drawing.new("Line")
+                
+                line.Color = Color3.fromRGB(255,255,255)
+                line.Thickness = 2
+                line.Visible = false
+                
+                data.SkeletonLines[i] = line
+                
+            end
+            
+            data.Char = char
+            data.HeadRef = head
+            data.RootRef = root
+            
+        end
+        
     end
 end
 
