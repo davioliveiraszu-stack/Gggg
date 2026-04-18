@@ -436,7 +436,7 @@ function LoopManager:Clear()
 end
 
 -- ============================================
--- ESP FUNCTIONS (NORMAL) - CORRIGIDO
+-- ESP NORMAL
 -- ============================================
 
 local profileImageCache = {}
@@ -454,7 +454,6 @@ local function getProfileImage(plr)
         profileImageCache[plr] = content
         return content
     end
-    
     return "rbxasset://textures/ui/GuiImagePlaceholder.png"
 end
 
@@ -465,15 +464,14 @@ local function TeleportToPlayer(targetPlayer)
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
     local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
     if myHRP and targetHRP then
-        myHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 3)
+        myHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 2)
     end
 end
 
 local function clearESP(plr)
     local data = ESPHighlights[plr]
     
-    if data then
-        
+    if data then        
         if data.Highlight then
             data.Highlight:Destroy()
             data.Highlight = nil
@@ -508,40 +506,28 @@ local function clearESP(plr)
         
         local char = plr.Character
         
-        if char then
-            
-            for _, v in pairs(char:GetDescendants()) do
-                
+        if char then            
+            for _, v in pairs(char:GetDescendants()) do                
                 if v:IsA("Highlight") then
                     v:Destroy()
                 end
 
-                if v:IsA("BillboardGui") then
-                    
+                if v:IsA("BillboardGui") then                    
                     if v.Name == "ESP_Photo"
                     or v.Name == "ESP_Name"
-                    or v.Name == "ESP_Distance" then
-                        
-                        v:Destroy()
-                        
-                    end
-                    
-                end
-                
-            end
-            
-        end
-        
+                    or v.Name == "ESP_Distance" then                       
+                        v:Destroy()                        
+                    end                    
+                end               
+            end           
+        end       
         PhotoTargets[plr] = nil
-        ESPHighlights[plr] = nil
-        
+        ESPHighlights[plr] = nil    
     end
 end
 
 local function clearAllESP()
-    
-    for plr, data in pairs(ESPHighlights) do
-        
+    for plr, data in pairs(ESPHighlights) do        
         if data.Highlight then
             pcall(function()
                 data.Highlight:Destroy()
@@ -566,63 +552,40 @@ local function clearAllESP()
             end)
         end
         
-        if data.SkeletonLines then
-            
-            for _, line in pairs(data.SkeletonLines) do
-                
-                if line then
-                    
+        if data.SkeletonLines then            
+            for _, line in pairs(data.SkeletonLines) do                
+                if line then                    
                     pcall(function()
                         line:Remove()
-                    end)
-                    
-                end
-                
-            end
-            
-        end
-        
-        PhotoTargets[plr] = nil
-        
+                    end)                    
+                end                
+            end            
+        end        
+        PhotoTargets[plr] = nil        
     end
 
-    for _, plr in pairs(Players:GetPlayers()) do
-        
-        if plr ~= player then
-            
-            local char = plr.Character
-            
-            if char then
-                
-                for _, v in pairs(char:GetDescendants()) do
-                    
+    for _, plr in pairs(Players:GetPlayers()) do        
+        if plr ~= player then            
+            local char = plr.Character            
+            if char then                
+                for _, v in pairs(char:GetDescendants()) do                    
                     if v:IsA("Highlight") then
                         v:Destroy()
                     end
                     
-                    if v:IsA("BillboardGui") then
-                        
+                    if v:IsA("BillboardGui") then                        
                         if v.Name == "ESP_Photo"
                         or v.Name == "ESP_Name"
-                        or v.Name == "ESP_Distance" then
-                            
-                            v:Destroy()
-                            
-                        end
-                        
-                    end
-                    
-                end
-                
-            end
-            
-        end
-        
+                        or v.Name == "ESP_Distance" then                            
+                            v:Destroy()                            
+                        end                        
+                    end                    
+                end                
+            end            
+        end        
     end
-
     ESPHighlights = {}
     PhotoTargets = {}
-    
 end
 
 local function atualizarESP()
@@ -671,8 +634,7 @@ local function atualizarESP()
         
         humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
         
-        local distancia = (root.Position - myPos).Magnitude
-        
+        local distancia = (root.Position - myPos).Magnitude        
         if distancia > 500 then
             if ESPHighlights[plr] then
                 clearESP(plr)
@@ -680,26 +642,19 @@ local function atualizarESP()
             continue
         end
         
-        local data = ESPHighlights[plr]
-        
+        local data = ESPHighlights[plr]        
         if not data then
             data = {}
             ESPHighlights[plr] = data
         end
-        
-        -- ROOT TROCOU (respawn)
+
         if data.RootRef and data.RootRef ~= root then
             clearESP(plr)
             data = {}
             ESPHighlights[plr] = data
         end
         
-        ------------------------------------------------
-        -- HIGHLIGHT
-        ------------------------------------------------
-        
-        if hasHighlight and not data.Highlight then
-            
+        if hasHighlight and not data.Highlight then            
             local h = Instance.new("Highlight")
             h.Parent = char
             h.FillTransparency = 1
@@ -710,15 +665,12 @@ local function atualizarESP()
                 h.OutlineColor = GetRainbowColor(0)
             else
                 h.OutlineColor = Color3.fromRGB(255,255,255)
-            end
-            
+            end            
             data.Highlight = h
             
-        elseif not hasHighlight and data.Highlight then
-            
+        elseif not hasHighlight and data.Highlight then            
             data.Highlight:Destroy()
-            data.Highlight = nil
-            
+            data.Highlight = nil            
         end
         
         if data.Highlight then
@@ -727,12 +679,7 @@ local function atualizarESP()
             end
         end
         
-        ------------------------------------------------
-        -- NAME
-        ------------------------------------------------
-        
-        if hasName and not data.NameBillboard then
-            
+        if hasName and not data.NameBillboard then            
             local nameBillboard = Instance.new("BillboardGui")
             nameBillboard.Name = "ESP_Name"
             nameBillboard.Parent = head
@@ -754,20 +701,13 @@ local function atualizarESP()
             data.NameBillboard = nameBillboard
             data.NameLabel = nameLabel
             
-        elseif not hasName and data.NameBillboard then
-            
+        elseif not hasName and data.NameBillboard then            
             data.NameBillboard:Destroy()
             data.NameBillboard = nil
-            data.NameLabel = nil
-            
+            data.NameLabel = nil            
         end
         
-        ------------------------------------------------
-        -- DISTANCE
-        ------------------------------------------------
-        
-        if hasDistance and not data.DistBillboard then
-            
+        if hasDistance and not data.DistBillboard then            
             local distBillboard = Instance.new("BillboardGui")
             distBillboard.Name = "ESP_Distance"
             distBillboard.Parent = root
@@ -789,30 +729,20 @@ local function atualizarESP()
             data.DistLabel = distLabel
             data.RootRef = root
             
-        elseif not hasDistance and data.DistBillboard then
-            
+        elseif not hasDistance and data.DistBillboard then            
             data.DistBillboard:Destroy()
             data.DistBillboard = nil
-            data.DistLabel = nil
-            
+            data.DistLabel = nil            
         end
         
-        if data.DistLabel and data.RootRef then
-            
+        if data.DistLabel and data.RootRef then            
             local newDist =
-                (myPos - data.RootRef.Position).Magnitude
-            
+                (myPos - data.RootRef.Position).Magnitude            
             data.DistLabel.Text =
-                math.floor(newDist) .. "m"
-            
+                math.floor(newDist) .. "m"            
         end
         
-        ------------------------------------------------
-        -- PHOTO
-        ------------------------------------------------
-        
-        if hasPhoto and not data.PhotoBillboard then
-            
+        if hasPhoto and not data.PhotoBillboard then            
             local photoBillboard = Instance.new("BillboardGui")
             photoBillboard.Name = "ESP_Photo"
             photoBillboard.Parent = char
@@ -842,45 +772,31 @@ local function atualizarESP()
                 offset = 8
             }
             
-        elseif not hasPhoto and data.PhotoBillboard then
-            
+        elseif not hasPhoto and data.PhotoBillboard then            
             data.PhotoBillboard:Destroy()
             data.PhotoBillboard = nil
-            PhotoTargets[plr] = nil
-            
+            PhotoTargets[plr] = nil            
         end
         
-        ------------------------------------------------
-        -- SKELETON (criação só)
-        ------------------------------------------------
-        
-        if hasSkeleton and not data.SkeletonLines then
-            
-            data.SkeletonLines = {}
-            
-            for i = 1,5 do
-                
-                local line = Drawing.new("Line")
-                
+        if hasSkeleton and not data.SkeletonLines then            
+            data.SkeletonLines = {}            
+            for i = 1,5 do                
+                local line = Drawing.new("Line")                
                 line.Color = Color3.fromRGB(255,255,255)
                 line.Thickness = 2
-                line.Visible = false
-                
-                data.SkeletonLines[i] = line
-                
-            end
-            
+                line.Visible = false                
+                data.SkeletonLines[i] = line                
+            end            
             data.Char = char
             data.HeadRef = head
-            data.RootRef = root
-            
-        end
-        
+            data.RootRef = root            
+        end        
     end
 end
 
 local function atualizarSkeleton()
-    if not Settings.ESPEnabled or not Settings.ESPSkeleton then
+    if not Settings.ESPEnabled
+    or not Settings.ESPSkeleton then        
         for _, data in pairs(ESPHighlights) do
             if data.SkeletonLines then
                 for _, line in pairs(data.SkeletonLines) do
@@ -889,91 +805,116 @@ local function atualizarSkeleton()
                     end
                 end
             end
-        end
+        end        
         return
     end
-    
-    for plr, data in pairs(ESPHighlights) do
-        if data.SkeletonLines and data.Char and data.Char.Parent then
-            local root = data.RootRef
-            local head = data.HeadRef
-            
-            if root and head and root.Parent and head.Parent then
-                local rootPos, rootOn = camera:WorldToViewportPoint(root.Position)
-                local headPos, headOn = camera:WorldToViewportPoint(head.Position)
-                
-                if rootOn and headOn and rootPos.Z > 0 and headPos.Z > 0 then
-                    local leftArm = data.Char:FindFirstChild("LeftHand") or data.Char:FindFirstChild("Left Arm")
-                    local rightArm = data.Char:FindFirstChild("RightHand") or data.Char:FindFirstChild("Right Arm")
-                    local leftLeg = data.Char:FindFirstChild("LeftFoot") or data.Char:FindFirstChild("Left Leg")
-                    local rightLeg = data.Char:FindFirstChild("RightFoot") or data.Char:FindFirstChild("Right Leg")
-                    
-                    local lines = data.SkeletonLines
-                    
-                    if lines[1] then
-                        lines[1].From = Vector2.new(headPos.X, headPos.Y)
-                        lines[1].To = Vector2.new(rootPos.X, rootPos.Y)
-                        lines[1].Visible = true
-                    end
-                    
-                    if leftArm and lines[2] then
-                        local laPos, laOn = camera:WorldToViewportPoint(leftArm.Position)
-                        if laOn then
-                            lines[2].From = Vector2.new(rootPos.X, rootPos.Y)
-                            lines[2].To = Vector2.new(laPos.X, laPos.Y)
-                            lines[2].Visible = true
-                        else
-                            lines[2].Visible = false
-                        end
-                    elseif lines[2] then
-                        lines[2].Visible = false
-                    end
-                    
-                    if rightArm and lines[3] then
-                        local raPos, raOn = camera:WorldToViewportPoint(rightArm.Position)
-                        if raOn then
-                            lines[3].From = Vector2.new(rootPos.X, rootPos.Y)
-                            lines[3].To = Vector2.new(raPos.X, raPos.Y)
-                            lines[3].Visible = true
-                        else
-                            lines[3].Visible = false
-                        end
-                    elseif lines[3] then
-                        lines[3].Visible = false
-                    end
-                    
-                    if leftLeg and lines[4] then
-                        local llPos, llOn = camera:WorldToViewportPoint(leftLeg.Position)
-                        if llOn then
-                            lines[4].From = Vector2.new(rootPos.X, rootPos.Y)
-                            lines[4].To = Vector2.new(llPos.X, llPos.Y)
-                            lines[4].Visible = true
-                        else
-                            lines[4].Visible = false
-                        end
-                    elseif lines[4] then
-                        lines[4].Visible = false
-                    end
-                    
-                    if rightLeg and lines[5] then
-                        local rlPos, rlOn = camera:WorldToViewportPoint(rightLeg.Position)
-                        if rlOn then
-                            lines[5].From = Vector2.new(rootPos.X, rootPos.Y)
-                            lines[5].To = Vector2.new(rlPos.X, rlPos.Y)
-                            lines[5].Visible = true
-                        else
-                            lines[5].Visible = false
-                        end
-                    elseif lines[5] then
-                        lines[5].Visible = false
-                    end
-                else
-                    for _, line in pairs(data.SkeletonLines) do
-                        if line then line.Visible = false end
-                    end
+
+    for plr, data in pairs(ESPHighlights) do        
+        if not data.SkeletonLines then
+            continue
+        end
+        
+        local char = data.Char        
+        if not char or not char.Parent then
+            continue
+        end
+        
+        local root = data.RootRef
+        local head = data.HeadRef
+        
+        if not root or not head then
+            continue
+        end
+
+        local myChar = GetChar()
+        local myHRP = myChar and GetHRP(myChar)
+
+        if not myHRP then continue end
+
+        local dist =
+            (root.Position - myHRP.Position).Magnitude
+
+        if dist > 500 then            
+            for _, line in pairs(data.SkeletonLines) do
+                if line then
+                    line.Visible = false
                 end
+            end            
+            continue
+        end
+
+        local rootPos, rootOn =
+            camera:WorldToViewportPoint(root.Position)
+
+        local headPos, headOn =
+            camera:WorldToViewportPoint(head.Position)
+
+        if not rootOn
+        or not headOn
+        or rootPos.Z < 0
+        or headPos.Z < 0 then            
+        
+            for _, line in pairs(data.SkeletonLines) do
+                if line then
+                    line.Visible = false
+                end
+            end            
+            continue
+        end
+
+        if not data.CachedParts then            
+            data.CachedParts = {
+                LeftArm =
+                    char:FindFirstChild("LeftHand")
+                    or char:FindFirstChild("Left Arm"),
+                RightArm =
+                    char:FindFirstChild("RightHand")
+                    or char:FindFirstChild("Right Arm"),
+                LeftLeg =
+                    char:FindFirstChild("LeftFoot")
+                    or char:FindFirstChild("Left Leg"),
+                RightLeg =
+                    char:FindFirstChild("RightFoot")
+                    or char:FindFirstChild("Right Leg")
+            }
+        end
+
+        local parts = data.CachedParts
+        local lines = data.SkeletonLines
+
+        if lines[1] then            
+            lines[1].From =
+                Vector2.new(headPos.X, headPos.Y)
+            lines[1].To =
+                Vector2.new(rootPos.X, rootPos.Y)
+            lines[1].Visible = true            
+        end
+
+        local function drawLimb(part, line)            
+            if not part or not line then
+                if line then
+                    line.Visible = false
+                end
+                return
+            end
+
+            local pos, on =
+                camera:WorldToViewportPoint(part.Position)
+                
+            if on then                
+                line.From =
+                    Vector2.new(rootPos.X, rootPos.Y)
+                line.To =
+                    Vector2.new(pos.X, pos.Y)
+                line.Visible = true                
+            else                
+                line.Visible = false                
             end
         end
+        drawLimb(parts.LeftArm, lines[2])
+        drawLimb(parts.RightArm, lines[3])
+        drawLimb(parts.LeftLeg, lines[4])
+        drawLimb(parts.RightLeg, lines[5])
     end
 end
 
@@ -1021,7 +962,7 @@ local function iniciarESPNormal()
     LoopManager:Remove("ESP_Skeleton")
     
     LoopManager:Add("ESP_Normal", atualizarESP, 0.3)
-    LoopManager:Add("ESP_Skeleton", atualizarSkeleton, 0.05)
+    LoopManager:Add("ESP_Skeleton", atualizarSkeleton, 0.035)
 end
 
 local function pararESPNormal()
