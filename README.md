@@ -1,7 +1,3 @@
--- ============================================
--- OZ HUB - DELTA MOBILE (SEM AIMBOT E SEM TELEPORT)
--- ============================================
-
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -89,7 +85,7 @@ end
 local function PlayNotificationSound()
     local sound = Instance.new("Sound")
     sound.SoundId = "rbxassetid://71450094482101"
-    sound.Volume = 0.50
+    sound.Volume = 1
     sound.Parent = SoundService
     sound:Play()
     sound.Ended:Connect(function()
@@ -271,13 +267,6 @@ local Settings = {
     backpackActive = false,
     headsitActive = false,
     spectateActive = false,
-    flingOPActive = false,
-    killAssassinActive = false,
-    killSheriffActive = false,
-    killAssassinPos = nil,
-    killSheriffPos = nil,
-    killAssassinConnection = nil,
-    killSheriffConnection = nil,
     LockUI = nil,
     MiraUI = nil,
     emoteSpeed = 1,
@@ -291,19 +280,15 @@ local Settings = {
     currentSelectedPlayer = nil,
 }
 
--- ============================================
--- VARIÁVEIS GLOBAIS
--- ============================================
-
 local lastPositions = {}
 local coinCache = {}
+local ESPMM2Highlights = {}
 local bodyVelocity = nil
 local bodyGyro = nil
 local AutoFarmTween = nil
 local currentEmoteTrack = nil
 local selectedAnimationPack = nil
 local currentSelectedPlayer = nil
-
 local NoClipToggle = nil
 local AutoFarmToggleElement = nil
 local ESPToggle = nil
@@ -313,13 +298,7 @@ local MiraUI = nil
 local playerDropdown = nil
 local infoSection = nil
 local infoParagraph = nil
-
 local jumpConnection = nil
-
-local ESPHighlights = {}
-local PhotoTargets = {}
-
-local ESPMM2Highlights = {}
 
 -- ============================================
 -- FUNÇÕES UTILITÁRIAS
@@ -440,6 +419,10 @@ end
 -- ============================================
 
 local profileImageCache = {}
+local espData = {}  
+local photoTargets = {}
+local renderConnection = nil
+local characterConnections = {}
 
 local function getProfileImage(plr)
     if profileImageCache[plr] then
@@ -468,459 +451,464 @@ local function TeleportToPlayer(targetPlayer)
     end
 end
 
-local function clearESP(plr)
-    local data = ESPHighlights[plr]
+local function destroyESP(plr)
+    local data = espData[plr]
+    if not data then return end
     
-    if data then        
-        if data.Highlight then
-            data.Highlight:Destroy()
-            data.Highlight = nil
+    if data.highlight then data.highlight:Destroy() end
+    if data.nameBillboard then data.nameBillboard:Destroy() end
+    if data.distBillboard then data.distBillboard:Destroy() end
+    if data.photoBillboard then data.photoBillboard:Destroy() end
+    if data.skeleton then
+        for _, line in pairs(data.skeleton) do
+            if line then line:Remove() end
         end
+    end
+    
+    espData[plr] = nil
+    photoTargets[plr] = nil
+end
 
-        if data.NameBillboard then
-            data.NameBillboard:Destroy()
-            data.NameBillboard = nil
-            data.NameLabel = nil
+local function destroyAllESP()
+    for plr, _ in pairs(espData) do
+        destroyESP(plr)
+    end
+    espData = {}
+    photoTargets = {}
+end
+
+local function setupESPForPlayer(plr)
+    if plr == player then return end
+    if espData[plr] then return end
+
+    local function onCharacterAdded(char)
+        task.wait(0.3)
+
+        local humanoid = char:FindFirstChild("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+
+        if not humanoid or not root or not head then return end
+
+        local data = {
+            char = char,
+            root = root,
+            head = head,
+            humanoid = humanoid,
+
+            highlight = nil,
+            nameBillboard = nil,
+            distBillboard = nil,
+            photoBillboard = nil,
+
+            skeleton = nil,
+            cachedParts = {},
+
+            lastPos = root.Position,
+            lastUpdate = tick()
+        }
+
+        local h = Instance.new("Highlight")
+        h.Parent = char
+        h.FillTransparency = 1
+        h.OutlineTransparency = 0
+        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        h.OutlineColor = Color3.fromRGB(255,255,255)
+
+        data.highlight = h
+
+        local nameBillboard = Instance.new("BillboardGui")
+        nameBillboard.Name = "ESP_Name"
+        nameBillboard.Parent = head
+        nameBillboard.Size = UDim2.new(0,140,0,25)
+        nameBillboard.StudsOffset = Vector3.new(0,2,0)
+        nameBillboard.AlwaysOnTop = true
+        nameBillboard.Enabled = false
+
+        local nameLabel = Instance.new("TextLabel", nameBillboard)
+        nameLabel.Size = UDim2.new(1,0,1,0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextStrokeTransparency = 0.3
+        nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 11
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+        nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
+        nameLabel.Text = plr.Name
+
+        data.nameBillboard = nameBillboard
+        data.nameLabel = nameLabel
+
+        local distBillboard = Instance.new("BillboardGui")
+        distBillboard.Name = "ESP_Distance"
+        distBillboard.Parent = root
+        distBillboard.Size = UDim2.new(0,70,0,22)
+        distBillboard.StudsOffset = Vector3.new(0,-5,0)
+        distBillboard.AlwaysOnTop = true
+        distBillboard.Enabled = false
+
+        local distLabel = Instance.new("TextLabel", distBillboard)
+        distLabel.Size = UDim2.new(1,0,1,0)
+        distLabel.BackgroundTransparency = 1
+        distLabel.TextStrokeTransparency = 0.3
+        distLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+        distLabel.Font = Enum.Font.GothamBold
+        distLabel.TextSize = 10
+        distLabel.TextXAlignment = Enum.TextXAlignment.Center
+        distLabel.TextColor3 = Color3.fromRGB(255,255,255)
+
+        data.distBillboard = distBillboard
+        data.distLabel = distLabel
+
+        local photoBillboard = Instance.new("BillboardGui")
+        photoBillboard.Name = "ESP_Photo"
+        photoBillboard.Parent = char
+        photoBillboard.Adornee = head
+        photoBillboard.Size = UDim2.new(0,25,0,25)
+        photoBillboard.StudsOffset = Vector3.new(0,8,0)
+        photoBillboard.AlwaysOnTop = true
+        photoBillboard.Enabled = false
+
+        local img = Instance.new("ImageLabel", photoBillboard)
+        img.Size = UDim2.new(1,0,1,0)
+        img.BackgroundTransparency = 1
+
+        task.delay(1.5, function()
+		    if img and img.Parent then
+		        img.Image = getProfileImage(plr)
+		    end		
+		end)
+
+        local corner = Instance.new("UICorner", img)
+        corner.CornerRadius = UDim.new(1,0)
+
+        local stroke = Instance.new("UIStroke", img)
+        stroke.Thickness = 1.5
+        stroke.Color = Color3.fromRGB(255,255,255)
+        stroke.Transparency = 0.3
+
+        data.photoBillboard = photoBillboard
+
+        photoTargets[plr] = {
+
+            head = head,
+            size = 25,
+            offset = 8
+
+        }
+
+        data.cachedParts = {
+            leftArm =
+                char:FindFirstChild("LeftHand")
+                or char:FindFirstChild("Left Arm"),
+
+            rightArm =
+                char:FindFirstChild("RightHand")
+                or char:FindFirstChild("Right Arm"),
+
+            leftLeg =
+                char:FindFirstChild("LeftFoot")
+                or char:FindFirstChild("Left Leg"),
+
+            rightLeg =
+                char:FindFirstChild("RightFoot")
+                or char:FindFirstChild("Right Leg")
+        }
+        data.rootRef = root
+        data.headRef = head
+        espData[plr] = data
+    end
+
+    if plr.Character and plr.Character.Parent then
+        onCharacterAdded(plr.Character)
+    end
+
+    if characterConnections[plr] then
+        characterConnections[plr]:Disconnect()
+    end
+
+    characterConnections[plr] =
+        plr.CharacterAdded:Connect(function(char)
+            destroyESP(plr)
+            onCharacterAdded(char)
+        end)
+end
+
+local function initAllESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then
+            setupESPForPlayer(plr)
         end
-
-        if data.DistBillboard then
-            data.DistBillboard:Destroy()
-            data.DistBillboard = nil
-            data.DistLabel = nil
-        end
-
-        if data.PhotoBillboard then
-            data.PhotoBillboard:Destroy()
-            data.PhotoBillboard = nil
-        end
-
-        if data.SkeletonLines then
-            for _, line in pairs(data.SkeletonLines) do
-                if line then
-                    line.Visible = false
-                    line:Remove()
-                end
-            end
-            data.SkeletonLines = nil
-        end
-        
-        local char = plr.Character
-        
-        if char then            
-            for _, v in pairs(char:GetDescendants()) do                
-                if v:IsA("Highlight") then
-                    v:Destroy()
-                end
-
-                if v:IsA("BillboardGui") then                    
-                    if v.Name == "ESP_Photo"
-                    or v.Name == "ESP_Name"
-                    or v.Name == "ESP_Distance" then                       
-                        v:Destroy()                        
-                    end                    
-                end               
-            end           
-        end       
-        PhotoTargets[plr] = nil
-        ESPHighlights[plr] = nil    
     end
 end
 
-local function clearAllESP()
-    for plr, data in pairs(ESPHighlights) do        
-        if data.Highlight then
-            pcall(function()
-                data.Highlight:Destroy()
-            end)
-        end
-        
-        if data.NameBillboard then
-            pcall(function()
-                data.NameBillboard:Destroy()
-            end)
-        end
-        
-        if data.DistBillboard then
-            pcall(function()
-                data.DistBillboard:Destroy()
-            end)
-        end
-        
-        if data.PhotoBillboard then
-            pcall(function()
-                data.PhotoBillboard:Destroy()
-            end)
-        end
-        
-        if data.SkeletonLines then            
-            for _, line in pairs(data.SkeletonLines) do                
-                if line then                    
-                    pcall(function()
-                        line:Remove()
-                    end)                    
-                end                
-            end            
-        end        
-        PhotoTargets[plr] = nil        
+local function updateHighlightColor(data)
+    if not data or not data.highlight then return end
+    
+    if Settings.ESPRainbow then
+        data.highlight.OutlineColor = GetRainbowColor(0)
+    else
+        data.highlight.OutlineColor = Color3.fromRGB(255,255,255)
     end
-
-    for _, plr in pairs(Players:GetPlayers()) do        
-        if plr ~= player then            
-            local char = plr.Character            
-            if char then                
-                for _, v in pairs(char:GetDescendants()) do                    
-                    if v:IsA("Highlight") then
-                        v:Destroy()
-                    end
-                    
-                    if v:IsA("BillboardGui") then                        
-                        if v.Name == "ESP_Photo"
-                        or v.Name == "ESP_Name"
-                        or v.Name == "ESP_Distance" then                            
-                            v:Destroy()                            
-                        end                        
-                    end                    
-                end                
-            end            
-        end        
-    end
-    ESPHighlights = {}
-    PhotoTargets = {}
 end
 
-local function atualizarESP()
+local function onRender()
     if not Settings.ESPEnabled then
-        clearAllESP()
-        return
+        for plr, data in pairs(espData) do            
+            if data.highlight then data.highlight.Enabled = false end
+            if data.nameBillboard then data.nameBillboard.Enabled = false end
+            if data.distBillboard then data.distBillboard.Enabled = false end
+            if data.photoBillboard then data.photoBillboard.Enabled = false end
+            
+            if data.skeleton then
+                for _, line in pairs(data.skeleton) do
+                    if line then
+                        line.Visible = false
+                    end
+                end
+            end            
+        end        
+        return        
     end
-    
+
     local hasHighlight = Settings.ESPHighlight
     local hasName = Settings.ESPName
     local hasDistance = Settings.ESPDistance
     local hasPhoto = Settings.ESPTeleportIcon
     local hasSkeleton = Settings.ESPSkeleton
-    local isRainbow = Settings.ESPRainbow
-    
-    local myChar = GetChar()
+
+    local myChar = player.Character
     if not myChar then return end
     
-    local myHRP = GetHRP(myChar)
-    if not myHRP then return end
-    
+    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end    
     local myPos = myHRP.Position
-    
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr == player then continue end
-        
-        local char = plr.Character
-        
-        if not char then
-            if ESPHighlights[plr] then
-                clearESP(plr)
-            end
+
+    for plr, data in pairs(espData) do        
+        if not plr or not plr.Parent then
+            destroyESP(plr)
             continue
-        end
-        
-        local humanoid = GetHumanoid(char)
-        local root = GetHRP(char)
-        local head = char:FindFirstChild("Head")
-        
-        if not humanoid or humanoid.Health <= 0 or not root or not head then
-            if ESPHighlights[plr] then
-                clearESP(plr)
-            end
-            continue
-        end
-        
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-        
-        local distancia = (root.Position - myPos).Magnitude        
-        if distancia > 500 then
-            if ESPHighlights[plr] then
-                clearESP(plr)
-            end
-            continue
-        end
-        
-        local data = ESPHighlights[plr]        
-        if not data then
-            data = {}
-            ESPHighlights[plr] = data
         end
 
-        if data.RootRef and data.RootRef ~= root then
-            clearESP(plr)
-            data = {}
-            ESPHighlights[plr] = data
-        end
-        
-        if hasHighlight and not data.Highlight then            
-            local h = Instance.new("Highlight")
-            h.Parent = char
-            h.FillTransparency = 1
-            h.OutlineTransparency = 0
-            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            
-            if isRainbow then
-                h.OutlineColor = GetRainbowColor(0)
-            else
-                h.OutlineColor = Color3.fromRGB(255,255,255)
-            end            
-            data.Highlight = h
-            
-        elseif not hasHighlight and data.Highlight then            
-            data.Highlight:Destroy()
-            data.Highlight = nil            
-        end
-        
-        if data.Highlight then
-            if isRainbow then
-                data.Highlight.OutlineColor = GetRainbowColor(0)
-            end
-        end
-        
-        if hasName and not data.NameBillboard then            
-            local nameBillboard = Instance.new("BillboardGui")
-            nameBillboard.Name = "ESP_Name"
-            nameBillboard.Parent = head
-            nameBillboard.Size = UDim2.new(0,140,0,25)
-            nameBillboard.StudsOffset = Vector3.new(0,2,0)
-            nameBillboard.AlwaysOnTop = true
-            
-            local nameLabel = Instance.new("TextLabel", nameBillboard)
-            nameLabel.Size = UDim2.new(1,0,1,0)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.TextStrokeTransparency = 0.3
-            nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-            nameLabel.Font = Enum.Font.GothamBold
-            nameLabel.TextSize = 11
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-            nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
-            nameLabel.Text = plr.Name
-            
-            data.NameBillboard = nameBillboard
-            data.NameLabel = nameLabel
-            
-        elseif not hasName and data.NameBillboard then            
-            data.NameBillboard:Destroy()
-            data.NameBillboard = nil
-            data.NameLabel = nil            
-        end
-        
-        if hasDistance and not data.DistBillboard then            
-            local distBillboard = Instance.new("BillboardGui")
-            distBillboard.Name = "ESP_Distance"
-            distBillboard.Parent = root
-            distBillboard.Size = UDim2.new(0,70,0,22)
-            distBillboard.StudsOffset = Vector3.new(0,-5,0)
-            distBillboard.AlwaysOnTop = true
-            
-            local distLabel = Instance.new("TextLabel", distBillboard)
-            distLabel.Size = UDim2.new(1,0,1,0)
-            distLabel.BackgroundTransparency = 1
-            distLabel.TextStrokeTransparency = 0.3
-            distLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-            distLabel.Font = Enum.Font.GothamBold
-            distLabel.TextSize = 10
-            distLabel.TextXAlignment = Enum.TextXAlignment.Center
-            distLabel.TextColor3 = Color3.fromRGB(255,255,255)
-            
-            data.DistBillboard = distBillboard
-            data.DistLabel = distLabel
-            data.RootRef = root
-            
-        elseif not hasDistance and data.DistBillboard then            
-            data.DistBillboard:Destroy()
-            data.DistBillboard = nil
-            data.DistLabel = nil            
-        end
-        
-        if data.DistLabel and data.RootRef then            
-            local newDist =
-                (myPos - data.RootRef.Position).Magnitude            
-            data.DistLabel.Text =
-                math.floor(newDist) .. "m"            
-        end
-        
-        if hasPhoto and not data.PhotoBillboard then            
-            local photoBillboard = Instance.new("BillboardGui")
-            photoBillboard.Name = "ESP_Photo"
-            photoBillboard.Parent = char
-            photoBillboard.Adornee = head
-            photoBillboard.Size = UDim2.new(0,25,0,25)
-            photoBillboard.StudsOffset = Vector3.new(0,8,0)
-            photoBillboard.AlwaysOnTop = true
-            
-            local img = Instance.new("ImageLabel", photoBillboard)
-            img.Size = UDim2.new(1,0,1,0)
-            img.BackgroundTransparency = 1
-            img.Image = getProfileImage(plr)
-            
-            local corner = Instance.new("UICorner", img)
-            corner.CornerRadius = UDim.new(1,0)
-            
-            local stroke = Instance.new("UIStroke", img)
-            stroke.Thickness = 1.5
-            stroke.Color = Color3.fromRGB(255,255,255)
-            stroke.Transparency = 0.3
-            
-            data.PhotoBillboard = photoBillboard
-            
-            PhotoTargets[plr] = {
-                head = head,
-                size = 25,
-                offset = 8
-            }
-            
-        elseif not hasPhoto and data.PhotoBillboard then            
-            data.PhotoBillboard:Destroy()
-            data.PhotoBillboard = nil
-            PhotoTargets[plr] = nil            
-        end
-        
-        if hasSkeleton and not data.SkeletonLines then            
-            data.SkeletonLines = {}            
-            for i = 1,5 do                
-                local line = Drawing.new("Line")                
-                line.Color = Color3.fromRGB(255,255,255)
-                line.Thickness = 2
-                line.Visible = false                
-                data.SkeletonLines[i] = line                
-            end            
-            data.Char = char
-            data.HeadRef = head
-            data.RootRef = root            
-        end        
-    end
-end
+        local char = data.char
+        local root = data.rootRef
+        local head = data.headRef
+        local humanoid = data.humanoid
 
-local function atualizarSkeleton()
-    if not Settings.ESPEnabled
-    or not Settings.ESPSkeleton then        
-        for _, data in pairs(ESPHighlights) do
-            if data.SkeletonLines then
-                for _, line in pairs(data.SkeletonLines) do
+        if not char or not char.Parent
+        or not root or not root.Parent
+        or not head or not head.Parent then            
+            destroyESP(plr)
+            continue            
+        end
+
+        if not humanoid or humanoid.Health <= 0 then
+            destroyESP(plr)
+            continue
+        end
+
+        humanoid.DisplayDistanceType =
+            Enum.HumanoidDisplayDistanceType.None
+
+        local distancia =
+            (root.Position - myPos).Magnitude
+
+        if distancia > 300 then           
+            if data.highlight then
+                data.highlight.Enabled = false
+            end
+            
+            if data.nameBillboard then
+                data.nameBillboard.Enabled = false
+            end
+            
+            if data.distBillboard then
+                data.distBillboard.Enabled = false
+            end
+            
+            if data.photoBillboard then
+                data.photoBillboard.Enabled = false
+            end
+            
+            if data.skeleton then
+                for _, line in pairs(data.skeleton) do
                     if line then
                         line.Visible = false
                     end
                 end
+            end            
+            continue            
+        end
+
+        if hasHighlight then            
+            if data.highlight then
+                data.highlight.Enabled = true
+                updateHighlightColor(data)
             end
-        end        
-        return
-    end
-
-    for plr, data in pairs(ESPHighlights) do        
-        if not data.SkeletonLines then
-            continue
-        end
-        
-        local char = data.Char        
-        if not char or not char.Parent then
-            continue
-        end
-        
-        local root = data.RootRef
-        local head = data.HeadRef
-        
-        if not root or not head then
-            continue
+            
+        elseif data.highlight then            
+            data.highlight.Enabled = false            
         end
 
-        local myChar = GetChar()
-        local myHRP = myChar and GetHRP(myChar)
-
-        if not myHRP then continue end
-
-        local dist =
-            (root.Position - myHRP.Position).Magnitude
-
-        if dist > 500 then            
-            for _, line in pairs(data.SkeletonLines) do
-                if line then
-                    line.Visible = false
-                end
+        if hasName and data.nameBillboard then            
+            data.nameBillboard.Enabled = true            
+            if data.nameLabel then
+                data.nameLabel.Text = plr.Name
             end            
-            continue
+        elseif data.nameBillboard then            
+            data.nameBillboard.Enabled = false            
         end
 
-        local rootPos, rootOn =
-            camera:WorldToViewportPoint(root.Position)
+        if hasDistance
+        and data.distBillboard
+        and data.distLabel then            
+            data.distBillboard.Enabled = true            
+            data.distLabel.Text =
+                math.floor(distancia) .. "m"            
+        elseif data.distBillboard then            
+            data.distBillboard.Enabled = false            
+        end
 
-        local headPos, headOn =
-            camera:WorldToViewportPoint(head.Position)
+        if hasPhoto and data.photoBillboard then            
+            data.photoBillboard.Enabled = true            
+        elseif data.photoBillboard then            
+            data.photoBillboard.Enabled = false            
+        end
 
-        if not rootOn
-        or not headOn
-        or rootPos.Z < 0
-        or headPos.Z < 0 then            
-        
-            for _, line in pairs(data.SkeletonLines) do
-                if line then
-                    line.Visible = false
+        if hasSkeleton then
+            if not data.skeleton then                
+                local skeleton = {}
+                for i = 1, 5 do                    
+                    local line = Drawing.new("Line")
+                    line.Color = Color3.fromRGB(255,255,255)
+                    line.Thickness = 1
+                    line.Visible = false                    
+                    skeleton[i] = line                    
                 end
-            end            
-            continue
-        end
+                data.skeleton = skeleton
+            end
 
-        if not data.CachedParts then            
-            data.CachedParts = {
-                LeftArm =
+            if not data.cachedParts.leftArm
+            or not data.cachedParts.leftArm.Parent then                
+                data.cachedParts.leftArm =
                     char:FindFirstChild("LeftHand")
-                    or char:FindFirstChild("Left Arm"),
-                RightArm =
+                    or char:FindFirstChild("Left Arm")
+
+                data.cachedParts.rightArm =
                     char:FindFirstChild("RightHand")
-                    or char:FindFirstChild("Right Arm"),
-                LeftLeg =
+                    or char:FindFirstChild("Right Arm")
+
+                data.cachedParts.leftLeg =
                     char:FindFirstChild("LeftFoot")
-                    or char:FindFirstChild("Left Leg"),
-                RightLeg =
+                    or char:FindFirstChild("Left Leg")
+
+                data.cachedParts.rightLeg =
                     char:FindFirstChild("RightFoot")
                     or char:FindFirstChild("Right Leg")
-            }
-        end
-
-        local parts = data.CachedParts
-        local lines = data.SkeletonLines
-
-        if lines[1] then            
-            lines[1].From =
-                Vector2.new(headPos.X, headPos.Y)
-            lines[1].To =
-                Vector2.new(rootPos.X, rootPos.Y)
-            lines[1].Visible = true            
-        end
-
-        local function drawLimb(part, line)            
-            if not part or not line then
-                if line then
-                    line.Visible = false
-                end
-                return
             end
 
-            local pos, on =
-                camera:WorldToViewportPoint(part.Position)
-                
-            if on then                
-                line.From =
+            local rootPos, rootOn =
+                camera:WorldToViewportPoint(root.Position)
+
+            local headPos, headOn =
+                camera:WorldToViewportPoint(head.Position)
+
+            if rootOn and headOn
+            and rootPos.Z > 0
+            and headPos.Z > 0 then
+                local lines = data.skeleton
+                local parts = data.cachedParts
+
+                lines[1].From =
+                    Vector2.new(headPos.X, headPos.Y)
+                lines[1].To =
                     Vector2.new(rootPos.X, rootPos.Y)
-                line.To =
-                    Vector2.new(pos.X, pos.Y)
-                line.Visible = true                
+                lines[1].Visible = true
+
+                if parts.leftArm then                    
+                    local pos, on =
+                        camera:WorldToViewportPoint(
+                            parts.leftArm.Position
+                        )
+
+                    if on then                        
+                        lines[2].From =
+                            Vector2.new(rootPos.X, rootPos.Y)
+                        lines[2].To =
+                            Vector2.new(pos.X, pos.Y)
+                        lines[2].Visible = true                        
+                    else                        
+                        lines[2].Visible = false                        
+                    end
+                end
+
+                if parts.rightArm then                    
+                    local pos, on =
+                        camera:WorldToViewportPoint(
+                            parts.rightArm.Position
+                        )
+
+                    if on then                        
+                        lines[3].From =
+                            Vector2.new(rootPos.X, rootPos.Y)
+                        lines[3].To =
+                            Vector2.new(pos.X, pos.Y)
+                        lines[3].Visible = true                        
+                    else                        
+                        lines[3].Visible = false                        
+                    end
+                end
+
+                if parts.leftLeg then                    
+                    local pos, on =
+                        camera:WorldToViewportPoint(
+                            parts.leftLeg.Position
+                        )
+
+                    if on then                        
+                        lines[4].From =
+                            Vector2.new(rootPos.X, rootPos.Y)
+                        lines[4].To =
+                            Vector2.new(pos.X, pos.Y)
+                        lines[4].Visible = true                        
+                    else                        
+                        lines[4].Visible = false                        
+                    end
+                end
+
+                if parts.rightLeg then                    
+                    local pos, on =
+                        camera:WorldToViewportPoint(
+                            parts.rightLeg.Position
+                        )
+
+                    if on then                        
+                        lines[5].From =
+                            Vector2.new(rootPos.X, rootPos.Y)
+                        lines[5].To =
+                            Vector2.new(pos.X, pos.Y)
+                        lines[5].Visible = true                        
+                    else                        
+                        lines[5].Visible = false                        
+                    end
+                end
             else                
-                line.Visible = false                
+                for _, line in pairs(data.skeleton) do
+                    line.Visible = false
+                end                
+            end
+
+        elseif data.skeleton then
+            for _, line in pairs(data.skeleton) do
+                line.Visible = false
             end
         end
-        drawLimb(parts.LeftArm, lines[2])
-        drawLimb(parts.RightArm, lines[3])
-        drawLimb(parts.LeftLeg, lines[4])
-        drawLimb(parts.RightLeg, lines[5])
     end
 end
 
 local clickConnection = nil
 
-local function iniciarDetectorClique()
+local function startClickDetector()
     if clickConnection then clickConnection:Disconnect() end
     
     clickConnection = UserInputService.InputBegan:Connect(function(input)
@@ -931,13 +919,13 @@ local function iniciarDetectorClique()
         
         local touchPos = UserInputService:GetMouseLocation()
         
-        for plr, data in pairs(PhotoTargets) do
+        for plr, data in pairs(photoTargets) do
             local head = data.head
             if head and head.Parent then
-                local screenPos, visible = camera:WorldToViewportPoint(head.Position + Vector3.new(0, data.offset or 3.2, 0))
+                local screenPos, visible = camera:WorldToViewportPoint(head.Position + Vector3.new(0, data.offset or 8, 0))
                 
                 if visible and screenPos.Z > 0 then
-                    local size = data.size or 28
+                    local size = data.size or 25
                     local minX = screenPos.X - size/2
                     local maxX = screenPos.X + size/2
                     local minY = screenPos.Y - size/2
@@ -953,27 +941,23 @@ local function iniciarDetectorClique()
     end)
 end
 
-local function iniciarESPNormal()
-    if not clickConnection then
-        iniciarDetectorClique()
-    end
-    
-    LoopManager:Remove("ESP_Normal")
-    LoopManager:Remove("ESP_Skeleton")
-    
-    LoopManager:Add("ESP_Normal", atualizarESP, 0.3)
-    LoopManager:Add("ESP_Skeleton", atualizarSkeleton, 0.035)
+local function startESP()
+    startClickDetector()
+    initAllESP()
+    if renderConnection then renderConnection:Disconnect() end
+    renderConnection = RunService.RenderStepped:Connect(onRender)
 end
 
-local function pararESPNormal()
-    LoopManager:Remove("ESP_Normal")
-    LoopManager:Remove("ESP_Skeleton")
-    clearAllESP()
-    
+local function stopESP()
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
     if clickConnection then
         clickConnection:Disconnect()
         clickConnection = nil
     end
+    destroyAllESP()
 end
 
 -- ============================================
@@ -1559,16 +1543,6 @@ local function stopAll()
             camera.CameraType = Enum.CameraType.Custom
         end
     end
-    if Settings.flingOPActive then
-        Settings.flingOPActive = false
-        LoopManager:Remove("FlingOP")
-        local meuHRP = GetHRP()
-        if meuHRP then
-            meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            meuHRP.RotVelocity = Vector3.new(0, 0, 0)
-            meuHRP.Velocity = Vector3.new(0, 0, 0)
-        end
-    end
     local char = GetChar()
     if char and char:FindFirstChild("Humanoid") then
         char.Humanoid.Sit = false
@@ -1710,95 +1684,6 @@ local function stopEmote()
 end
 
 -- ============================================
--- MM2 FUNCTIONS
--- ============================================
-
-local function encontrarPorPapel(papelAlvo)
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and getPapel(plr) == papelAlvo then
-            return plr
-        end
-    end
-    return nil
-end
-
-local function pararJogarAssassino()
-    if Settings.killAssassinActive then
-        Settings.killAssassinActive = false
-        if Settings.killAssassinConnection then
-            Settings.killAssassinConnection:Disconnect()
-            Settings.killAssassinConnection = nil
-        end
-        LoopManager:Remove("KillAssassinFling")
-        local meuHRP = GetHRP()
-        if meuHRP then
-            meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            meuHRP.RotVelocity = Vector3.new(0, 0, 0)
-            meuHRP.Velocity = Vector3.new(0, 0, 0)
-            if Settings.killAssassinPos then
-                meuHRP.CFrame = Settings.killAssassinPos
-                Settings.killAssassinPos = nil
-            end
-        end
-    end
-end
-
-local function pararJogarXerife()
-    if Settings.killSheriffActive then
-        Settings.killSheriffActive = false
-        if Settings.killSheriffConnection then
-            Settings.killSheriffConnection:Disconnect()
-            Settings.killSheriffConnection = nil
-        end
-        LoopManager:Remove("KillSheriffFling")
-        local meuHRP = GetHRP()
-        if meuHRP then
-            meuHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            meuHRP.RotVelocity = Vector3.new(0, 0, 0)
-            meuHRP.Velocity = Vector3.new(0, 0, 0)
-            if Settings.killSheriffPos then
-                meuHRP.CFrame = Settings.killSheriffPos
-                Settings.killSheriffPos = nil
-            end
-        end
-    end
-end
-
-local function monitorarAssassino()
-    local assassino = encontrarPorPapel("Assassino")
-    if assassino and assassino.Character then
-        local humanoid = GetHumanoid(assassino.Character)
-        if humanoid then
-            if Settings.killAssassinConnection then
-                Settings.killAssassinConnection:Disconnect()
-            end
-            Settings.killAssassinConnection = humanoid.Died:Connect(function()
-                if Settings.killAssassinActive then
-                    pararJogarAssassino()
-                end
-            end)
-        end
-    end
-end
-
-local function monitorarXerife()
-    local xerife = encontrarPorPapel("Xerife")
-    if xerife and xerife.Character then
-        local humanoid = GetHumanoid(xerife.Character)
-        if humanoid then
-            if Settings.killSheriffConnection then
-                Settings.killSheriffConnection:Disconnect()
-            end
-            Settings.killSheriffConnection = humanoid.Died:Connect(function()
-                if Settings.killSheriffActive then
-                    pararJogarXerife()
-                end
-            end)
-        end
-    end
-end
-
--- ============================================
 -- BOTÃO FLUTUANTE E UI PRINCIPAL
 -- ============================================
     
@@ -1884,11 +1769,11 @@ ESPToggle = ESPTab:Toggle({
         Settings.ESPEnabled = Value
         if Value then
             if ESPMM2Toggle then ESPMM2Toggle:Lock() end
-            iniciarESPNormal()
+            startESP()
             AddNotification("OZ HUB", "ESP ativado", 3)
         else
             if ESPMM2Toggle then ESPMM2Toggle:Unlock() end
-            pararESPNormal()
+            stopESP()
             AddNotification("OZ HUB", "ESP desativado", 3)
         end
     end
@@ -1899,10 +1784,6 @@ ESPTab:Toggle({
     Default = false,
     Callback = function(Value)
         Settings.ESPHighlight = Value
-        if Settings.ESPEnabled then
-            pararESPNormal()
-            iniciarESPNormal()
-        end
     end
 })
 
@@ -1911,10 +1792,6 @@ ESPTab:Toggle({
     Default = false,
     Callback = function(Value)
         Settings.ESPRainbow = Value
-        if Settings.ESPEnabled then
-            pararESPNormal()
-            iniciarESPNormal()
-        end
     end
 })
 
@@ -1923,10 +1800,6 @@ ESPTab:Toggle({
     Default = false,
     Callback = function(Value)
         Settings.ESPSkeleton = Value
-        if Settings.ESPEnabled then
-            pararESPNormal()
-            iniciarESPNormal()
-        end
     end
 })
 
@@ -1935,10 +1808,6 @@ ESPTab:Toggle({
     Default = false,
     Callback = function(Value)
         Settings.ESPTeleportIcon = Value
-        if Settings.ESPEnabled then
-            pararESPNormal()
-            iniciarESPNormal()
-        end
     end
 })
 
@@ -1947,10 +1816,6 @@ ESPTab:Toggle({
     Default = false,
     Callback = function(Value)
         Settings.ESPName = Value
-        if Settings.ESPEnabled then
-            pararESPNormal()
-            iniciarESPNormal()
-        end
     end
 })
 
@@ -1959,10 +1824,6 @@ ESPTab:Toggle({
     Default = false,
     Callback = function(Value)
         Settings.ESPDistance = Value
-        if Settings.ESPEnabled then
-            pararESPNormal()
-            iniciarESPNormal()
-        end
     end
 })
 
@@ -2381,7 +2242,7 @@ OnlinesTab:Button({
 OnlinesTab:Button({
     Title = "Stop All",
     Callback = function()
-        if not (Settings.backpackActive or Settings.headsitActive or Settings.spectateActive or Settings.flingOPActive) then
+        if not (Settings.backpackActive or Settings.headsitActive or Settings.spectateActive) then
             AddNotification("OZ HUB", "Nenhuma acao ativa", 3)
             return
         end
@@ -2390,31 +2251,57 @@ OnlinesTab:Button({
     end
 })
 
-local function atualizarDropdown()
-    local novaLista = {}
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            table.insert(novaLista, {
-                Title = plr.Name,
-                Icon = getCachedHeadshot(plr),
-                Player = plr,
-            })
+local dropdownBusy = false
+
+function atualizarDropdown()
+    if dropdownBusy then return end
+    dropdownBusy = true
+
+    task.spawn(function()
+        local novaLista = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(novaLista, {
+                    Title = plr.Name,
+                    Icon = getCachedHeadshot(plr),
+                    Player = plr,
+                })
+                task.wait()
+            end
         end
-    end
-    playerDropdown:Refresh(novaLista)
+        playerDropdown:Refresh(novaLista)
+        dropdownBusy = false
+    end)
 end
 
-Players.PlayerAdded:Connect(atualizarDropdown)
+Players.PlayerAdded:Connect(function(plr)
+    task.delay(0.5, function()
+        atualizarDropdown()
+    end)
+end)
+
 Players.PlayerRemoving:Connect(function(plr)
     if currentSelectedPlayer == plr then
         currentSelectedPlayer = nil
         updateInfoParagraph(player)
     end
     thumbnailCache[plr] = nil
-    atualizarDropdown()
+    
+    task.delay(0.2, function()
+        atualizarDropdown()
+    end)
 end)
 
 -- ========== MM2 TAB ==========
+local function encontrarPorPapel(papelAlvo)
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and getPapel(plr) == papelAlvo then
+            return plr
+        end
+    end
+    return nil
+end
+
 local isMM2 = (game.PlaceId == 142823291)
 
 if isMM2 then
@@ -2652,24 +2539,25 @@ end)
 local eventConnections = {}
 
 table.insert(eventConnections, player.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    
-    if Settings.flying then startFly() end
-    if Settings.NoClipEnabled then
-        aplicarNoClip()
-    end
-    if selectedAnimationPack then aplicarPack(ANIMATION_PACKS[selectedAnimationPack]) end
-    if Settings.SpeedToggleEnabled then aplicarSpeed() end
-    if Settings.FOVCamToggleEnabled then aplicarFov() end
-    
-    if Settings.ESPEnabled then
-        clearAllESP()
-        iniciarESPNormal()
-    end
-    if Settings.ESPMM2Enabled then
-        clearESPMM2()
-        iniciarESPMM2()
-    end
+    task.spawn(function()
+        task.wait(0.5)
+        if Settings.flying then startFly() end
+        if Settings.NoClipEnabled then
+            aplicarNoClip()
+        end
+        if selectedAnimationPack then
+            aplicarPack(ANIMATION_PACKS[selectedAnimationPack])
+        end
+        if Settings.SpeedToggleEnabled then
+            aplicarSpeed()
+        end
+        if Settings.FOVCamToggleEnabled then
+            aplicarFov()
+        end
+        if Settings.ESPMM2Enabled then
+            iniciarESPMM2()
+        end
+    end)
 end))
 
 table.insert(eventConnections, player.CharacterRemoving:Connect(function()
@@ -2679,19 +2567,20 @@ table.insert(eventConnections, player.CharacterRemoving:Connect(function()
 end))
 
 table.insert(eventConnections, Players.PlayerAdded:Connect(function(plr)
-    if plr ~= player then
+    if plr == player then return end
+    
+    task.spawn(function()
+        task.wait(0.5)
+
         if Settings.ESPEnabled then
-            clearAllESP()
-            iniciarESPNormal()
+            setupESPForPlayer(plr)
         end
+
         if Settings.ESPMM2Enabled then
-            clearESPMM2()
-            iniciarESPMM2()
+            iniciarESPMM2() 
         end
-    end
-    monitorarAssassino()
-    monitorarXerife()
-    atualizarDropdown()
+        atualizarDropdown()
+    end)
 end))
 
 table.insert(eventConnections, Players.PlayerRemoving:Connect(function(plr)
@@ -2701,30 +2590,22 @@ table.insert(eventConnections, Players.PlayerRemoving:Connect(function(plr)
     end
     thumbnailCache[plr] = nil
     atualizarDropdown()
-    clearESP(plr)
     
-    if Settings.killAssassinActive and plr == encontrarPorPapel("Assassino") then
-        pararJogarAssassino()
-    end
-    if Settings.killSheriffActive and plr == encontrarPorPapel("Xerife") then
-        pararJogarXerife()
-    end
+    destroyESP(plr)
 end))
 
-for _, plr in pairs(Players:GetPlayers()) do
+for _, plr in ipairs(Players:GetPlayers()) do
     if plr ~= player then
-        table.insert(eventConnections, plr.CharacterAdded:Connect(function()
-            if Settings.ESPEnabled then
-                clearAllESP()
-                iniciarESPNormal()
-            end
-            if Settings.ESPMM2Enabled then
-                clearESPMM2()
-                iniciarESPMM2()
-            end
-        end))
-        table.insert(eventConnections, plr.CharacterAdded:Connect(monitorarAssassino))
-        table.insert(eventConnections, plr.CharacterAdded:Connect(monitorarXerife))
+        plr.CharacterAdded:Connect(function()
+            task.delay(0.5, function()
+                if Settings.ESPEnabled then
+                    setupESPForPlayer(plr)
+                end
+                if Settings.ESPMM2Enabled then
+                    iniciarESPMM2()
+                end
+            end)
+        end)
     end
 end
 
@@ -2753,7 +2634,8 @@ Window:OnDestroy(function()
     end
     LoopManager.tasks = {}
     
-    pararESPNormal()
+    stopESP()
+    
     pararESPMM2()
     
     if clickConnection then
@@ -2810,13 +2692,6 @@ Window:OnDestroy(function()
     
     stopAll()
     
-    if Settings.killAssassinActive then
-        pararJogarAssassino()
-    end
-    if Settings.killSheriffActive then
-        pararJogarXerife()
-    end
-    
     if camera then
         camera.FieldOfView = 70
     end
@@ -2835,8 +2710,8 @@ Window:OnDestroy(function()
     lastPositions = {}
     
     for _, conn in pairs(eventConnections) do
-	    conn:Disconnect()
-	end
+        conn:Disconnect()
+    end
     
     RemoveRainbowListener("Notifications")
     
