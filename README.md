@@ -2252,21 +2252,23 @@ OnlinesTab:Button({
 })
 
 local dropdownBusy = false
+local dropdownCache = {}
 
 function atualizarDropdown()
     if dropdownBusy then return end
     dropdownBusy = true
-
     task.spawn(function()
         local novaLista = {}
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= player then
-                table.insert(novaLista, {
-                    Title = plr.Name,
-                    Icon = getCachedHeadshot(plr),
-                    Player = plr,
-                })
-                task.wait()
+                if not dropdownCache[plr] then
+                    dropdownCache[plr] = {
+                        Title = plr.Name,
+                        Icon = getCachedHeadshot(plr),
+                        Player = plr
+                    }
+                end
+                table.insert(novaLista, dropdownCache[plr])
             end
         end
         playerDropdown:Refresh(novaLista)
@@ -2286,10 +2288,9 @@ Players.PlayerRemoving:Connect(function(plr)
         updateInfoParagraph(player)
     end
     thumbnailCache[plr] = nil
-    
-    task.delay(0.2, function()
-        atualizarDropdown()
-    end)
+    dropdownCache[plr] = nil
+
+    atualizarDropdown()
 end)
 
 -- ========== MM2 TAB ==========
@@ -2579,18 +2580,10 @@ table.insert(eventConnections, Players.PlayerAdded:Connect(function(plr)
         if Settings.ESPMM2Enabled then
             iniciarESPMM2() 
         end
-        atualizarDropdown()
     end)
 end))
 
 table.insert(eventConnections, Players.PlayerRemoving:Connect(function(plr)
-    if currentSelectedPlayer == plr then
-        currentSelectedPlayer = nil
-        updateInfoParagraph(player)
-    end
-    thumbnailCache[plr] = nil
-    atualizarDropdown()
-    
     destroyESP(plr)
 end))
 
