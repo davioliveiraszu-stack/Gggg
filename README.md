@@ -1598,7 +1598,7 @@ local function stopEmote()
 end
 
 -- ============================================
--- UI DE JOGADORES (INDEPENDENTE)
+-- UI DE JOGADORES (SÓ APARECE COM A WINDUI)
 -- ============================================
 
 local PlayersUI = nil
@@ -2013,28 +2013,18 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Sincronizar UI de jogadores com a WindUI
-local function SyncPlayersUI()
-    if Window.Visible then
-        if PlayersUI then
-            UpdatePlayersCache()
-            RefreshPlayersList()
-            PlayersUI.Enabled = true
-        end
-    else
-        if PlayersUI then
-            PlayersUI.Enabled = false
-        end
-    end
-end
-
+-- Controlar a UI de jogadores junto com a WindUI
 floatingButton.MouseButton1Click:Connect(function()
     if Window.Visible then
         Window:Close()
         if PlayersUI then PlayersUI.Enabled = false end
     else
         Window:Open()
-        SyncPlayersUI()
+        if PlayersUI then
+            UpdatePlayersCache()
+            RefreshPlayersList()
+            PlayersUI.Enabled = true
+        end
     end
 end)
 
