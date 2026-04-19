@@ -295,9 +295,6 @@ local ESPToggle = nil
 local ESPMM2Toggle = nil
 local LockUI = nil
 local MiraUI = nil
-local playerDropdown = nil
-local infoSection = nil
-local infoParagraph = nil
 local jumpConnection = nil
 
 -- ============================================
@@ -312,10 +309,6 @@ end
 local function GetHumanoid(char) 
     char = char or GetChar() 
     return char and char:FindFirstChild("Humanoid") 
-end
-
-local function getHeadshot(plr)
-    return Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 end
 
 -- ============================================
@@ -382,12 +375,12 @@ function LoopManager:Add(name, callback, frequency)
     if self.tasks[name] then return false end
     self.tasks[name] = { callback = callback, frequency = frequency or 0, lastRun = 0 }
     if not self.conn and next(self.tasks) then
-        self.conn = RunService.Heartbeat:Connect(function(dt)
+        self.conn = RunService.Heartbeat:Connect(function()
             local now = tick()
             for taskName, task in pairs(self.tasks) do
                 if task.frequency == 0 or (now - task.lastRun) >= task.frequency then
                     task.lastRun = now
-                    local success, err = pcall(task.callback, dt)
+                    local success, err = pcall(task.callback)
                     if not success then 
                         warn("[LoopManager] Erro em", taskName, err) 
                     end
@@ -574,10 +567,10 @@ local function setupESPForPlayer(plr)
         img.BackgroundTransparency = 1
 
         task.delay(1.5, function()
-		    if img and img.Parent then
-		        img.Image = getProfileImage(plr)
-		    end		
-		end)
+            if img and img.Parent then
+                img.Image = getProfileImage(plr)
+            end        
+        end)
 
         local corner = Instance.new("UICorner", img)
         corner.CornerRadius = UDim.new(1,0)
@@ -590,29 +583,16 @@ local function setupESPForPlayer(plr)
         data.photoBillboard = photoBillboard
 
         photoTargets[plr] = {
-
             head = head,
             size = 25,
             offset = 8
-
         }
 
         data.cachedParts = {
-            leftArm =
-                char:FindFirstChild("LeftHand")
-                or char:FindFirstChild("Left Arm"),
-
-            rightArm =
-                char:FindFirstChild("RightHand")
-                or char:FindFirstChild("Right Arm"),
-
-            leftLeg =
-                char:FindFirstChild("LeftFoot")
-                or char:FindFirstChild("Left Leg"),
-
-            rightLeg =
-                char:FindFirstChild("RightFoot")
-                or char:FindFirstChild("Right Leg")
+            leftArm = char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm"),
+            rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm"),
+            leftLeg = char:FindFirstChild("LeftFoot") or char:FindFirstChild("Left Leg"),
+            rightLeg = char:FindFirstChild("RightFoot") or char:FindFirstChild("Right Leg")
         }
         data.rootRef = root
         data.headRef = head
@@ -627,11 +607,10 @@ local function setupESPForPlayer(plr)
         characterConnections[plr]:Disconnect()
     end
 
-    characterConnections[plr] =
-        plr.CharacterAdded:Connect(function(char)
-            destroyESP(plr)
-            onCharacterAdded(char)
-        end)
+    characterConnections[plr] = plr.CharacterAdded:Connect(function(char)
+        destroyESP(plr)
+        onCharacterAdded(char)
+    end)
 end
 
 local function initAllESP()
@@ -695,9 +674,7 @@ local function onRender()
         local head = data.headRef
         local humanoid = data.humanoid
 
-        if not char or not char.Parent
-        or not root or not root.Parent
-        or not head or not head.Parent then            
+        if not char or not char.Parent or not root or not root.Parent or not head or not head.Parent then            
             destroyESP(plr)
             continue            
         end
@@ -707,34 +684,18 @@ local function onRender()
             continue
         end
 
-        humanoid.DisplayDistanceType =
-            Enum.HumanoidDisplayDistanceType.None
+        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 
-        local distancia =
-            (root.Position - myPos).Magnitude
+        local distancia = (root.Position - myPos).Magnitude
 
         if distancia > 300 then           
-            if data.highlight then
-                data.highlight.Enabled = false
-            end
-            
-            if data.nameBillboard then
-                data.nameBillboard.Enabled = false
-            end
-            
-            if data.distBillboard then
-                data.distBillboard.Enabled = false
-            end
-            
-            if data.photoBillboard then
-                data.photoBillboard.Enabled = false
-            end
-            
+            if data.highlight then data.highlight.Enabled = false end
+            if data.nameBillboard then data.nameBillboard.Enabled = false end
+            if data.distBillboard then data.distBillboard.Enabled = false end
+            if data.photoBillboard then data.photoBillboard.Enabled = false end
             if data.skeleton then
                 for _, line in pairs(data.skeleton) do
-                    if line then
-                        line.Visible = false
-                    end
+                    if line then line.Visible = false end
                 end
             end            
             continue            
@@ -745,7 +706,6 @@ local function onRender()
                 data.highlight.Enabled = true
                 updateHighlightColor(data)
             end
-            
         elseif data.highlight then            
             data.highlight.Enabled = false            
         end
@@ -759,12 +719,9 @@ local function onRender()
             data.nameBillboard.Enabled = false            
         end
 
-        if hasDistance
-        and data.distBillboard
-        and data.distLabel then            
+        if hasDistance and data.distBillboard and data.distLabel then            
             data.distBillboard.Enabled = true            
-            data.distLabel.Text =
-                math.floor(distancia) .. "m"            
+            data.distLabel.Text = math.floor(distancia) .. "m"            
         elseif data.distBillboard then            
             data.distBillboard.Enabled = false            
         end
@@ -788,54 +745,29 @@ local function onRender()
                 data.skeleton = skeleton
             end
 
-            if not data.cachedParts.leftArm
-            or not data.cachedParts.leftArm.Parent then                
-                data.cachedParts.leftArm =
-                    char:FindFirstChild("LeftHand")
-                    or char:FindFirstChild("Left Arm")
-
-                data.cachedParts.rightArm =
-                    char:FindFirstChild("RightHand")
-                    or char:FindFirstChild("Right Arm")
-
-                data.cachedParts.leftLeg =
-                    char:FindFirstChild("LeftFoot")
-                    or char:FindFirstChild("Left Leg")
-
-                data.cachedParts.rightLeg =
-                    char:FindFirstChild("RightFoot")
-                    or char:FindFirstChild("Right Leg")
+            if not data.cachedParts.leftArm or not data.cachedParts.leftArm.Parent then                
+                data.cachedParts.leftArm = char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm")
+                data.cachedParts.rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+                data.cachedParts.leftLeg = char:FindFirstChild("LeftFoot") or char:FindFirstChild("Left Leg")
+                data.cachedParts.rightLeg = char:FindFirstChild("RightFoot") or char:FindFirstChild("Right Leg")
             end
 
-            local rootPos, rootOn =
-                camera:WorldToViewportPoint(root.Position)
+            local rootPos, rootOn = camera:WorldToViewportPoint(root.Position)
+            local headPos, headOn = camera:WorldToViewportPoint(head.Position)
 
-            local headPos, headOn =
-                camera:WorldToViewportPoint(head.Position)
-
-            if rootOn and headOn
-            and rootPos.Z > 0
-            and headPos.Z > 0 then
+            if rootOn and headOn and rootPos.Z > 0 and headPos.Z > 0 then
                 local lines = data.skeleton
                 local parts = data.cachedParts
 
-                lines[1].From =
-                    Vector2.new(headPos.X, headPos.Y)
-                lines[1].To =
-                    Vector2.new(rootPos.X, rootPos.Y)
+                lines[1].From = Vector2.new(headPos.X, headPos.Y)
+                lines[1].To = Vector2.new(rootPos.X, rootPos.Y)
                 lines[1].Visible = true
 
                 if parts.leftArm then                    
-                    local pos, on =
-                        camera:WorldToViewportPoint(
-                            parts.leftArm.Position
-                        )
-
+                    local pos, on = camera:WorldToViewportPoint(parts.leftArm.Position)
                     if on then                        
-                        lines[2].From =
-                            Vector2.new(rootPos.X, rootPos.Y)
-                        lines[2].To =
-                            Vector2.new(pos.X, pos.Y)
+                        lines[2].From = Vector2.new(rootPos.X, rootPos.Y)
+                        lines[2].To = Vector2.new(pos.X, pos.Y)
                         lines[2].Visible = true                        
                     else                        
                         lines[2].Visible = false                        
@@ -843,16 +775,10 @@ local function onRender()
                 end
 
                 if parts.rightArm then                    
-                    local pos, on =
-                        camera:WorldToViewportPoint(
-                            parts.rightArm.Position
-                        )
-
+                    local pos, on = camera:WorldToViewportPoint(parts.rightArm.Position)
                     if on then                        
-                        lines[3].From =
-                            Vector2.new(rootPos.X, rootPos.Y)
-                        lines[3].To =
-                            Vector2.new(pos.X, pos.Y)
+                        lines[3].From = Vector2.new(rootPos.X, rootPos.Y)
+                        lines[3].To = Vector2.new(pos.X, pos.Y)
                         lines[3].Visible = true                        
                     else                        
                         lines[3].Visible = false                        
@@ -860,16 +786,10 @@ local function onRender()
                 end
 
                 if parts.leftLeg then                    
-                    local pos, on =
-                        camera:WorldToViewportPoint(
-                            parts.leftLeg.Position
-                        )
-
+                    local pos, on = camera:WorldToViewportPoint(parts.leftLeg.Position)
                     if on then                        
-                        lines[4].From =
-                            Vector2.new(rootPos.X, rootPos.Y)
-                        lines[4].To =
-                            Vector2.new(pos.X, pos.Y)
+                        lines[4].From = Vector2.new(rootPos.X, rootPos.Y)
+                        lines[4].To = Vector2.new(pos.X, pos.Y)
                         lines[4].Visible = true                        
                     else                        
                         lines[4].Visible = false                        
@@ -877,16 +797,10 @@ local function onRender()
                 end
 
                 if parts.rightLeg then                    
-                    local pos, on =
-                        camera:WorldToViewportPoint(
-                            parts.rightLeg.Position
-                        )
-
+                    local pos, on = camera:WorldToViewportPoint(parts.rightLeg.Position)
                     if on then                        
-                        lines[5].From =
-                            Vector2.new(rootPos.X, rootPos.Y)
-                        lines[5].To =
-                            Vector2.new(pos.X, pos.Y)
+                        lines[5].From = Vector2.new(rootPos.X, rootPos.Y)
+                        lines[5].To = Vector2.new(pos.X, pos.Y)
                         lines[5].Visible = true                        
                     else                        
                         lines[5].Visible = false                        
@@ -1684,6 +1598,354 @@ local function stopEmote()
 end
 
 -- ============================================
+-- UI DE JOGADORES (INDEPENDENTE)
+-- ============================================
+
+local PlayersUI = nil
+local searchBox = nil
+local playersContainer = nil
+local selectedPlayerForUI = nil
+local allPlayersList = {}
+local playerButtons = {}
+
+local function CreatePlayersUI()
+    if PlayersUI then PlayersUI:Destroy() end
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "OzHubPlayersList"
+    screenGui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.Enabled = false
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Parent = screenGui
+    mainFrame.Size = UDim2.new(0, 340, 0, 480)
+    mainFrame.Position = UDim2.new(0.02, 0, 0.15, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    mainFrame.BackgroundTransparency = 0.05
+    mainFrame.BorderSizePixel = 0
+    mainFrame.ClipsDescendants = true
+    
+    local mainCorner = Instance.new("UICorner", mainFrame)
+    mainCorner.CornerRadius = UDim.new(0, 12)
+    
+    local mainStroke = Instance.new("UIStroke", mainFrame)
+    mainStroke.Thickness = 1
+    mainStroke.Color = Color3.fromRGB(45, 45, 55)
+    
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Parent = mainFrame
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+    titleBar.BackgroundTransparency = 0
+    titleBar.BorderSizePixel = 0
+    
+    local titleCorner = Instance.new("UICorner", titleBar)
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Parent = titleBar
+    titleLabel.Size = UDim2.new(1, -40, 1, 0)
+    titleLabel.Position = UDim2.new(0, 15, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "👥 Jogadores Online"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 14
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local searchFrame = Instance.new("Frame")
+    searchFrame.Parent = mainFrame
+    searchFrame.Size = UDim2.new(1, -20, 0, 35)
+    searchFrame.Position = UDim2.new(0, 10, 0, 50)
+    searchFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+    searchFrame.BackgroundTransparency = 0
+    searchFrame.BorderSizePixel = 0
+    
+    local searchCorner = Instance.new("UICorner", searchFrame)
+    searchCorner.CornerRadius = UDim.new(0, 8)
+    
+    local searchIcon = Instance.new("ImageLabel")
+    searchIcon.Parent = searchFrame
+    searchIcon.Size = UDim2.new(0, 20, 0, 20)
+    searchIcon.Position = UDim2.new(0, 10, 0.5, -10)
+    searchIcon.BackgroundTransparency = 1
+    searchIcon.Image = "rbxassetid://10709441932"
+    searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
+    
+    searchBox = Instance.new("TextBox")
+    searchBox.Parent = searchFrame
+    searchBox.Size = UDim2.new(1, -40, 1, 0)
+    searchBox.Position = UDim2.new(0, 35, 0, 0)
+    searchBox.BackgroundTransparency = 1
+    searchBox.PlaceholderText = "🔍 Pesquisar jogador..."
+    searchBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    searchBox.TextSize = 13
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.ClearTextOnFocus = false
+    
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Parent = mainFrame
+    scrollFrame.Size = UDim2.new(1, -20, 1, -100)
+    scrollFrame.Position = UDim2.new(0, 10, 0, 95)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 4
+    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    
+    playersContainer = Instance.new("UIListLayout")
+    playersContainer.Parent = scrollFrame
+    playersContainer.Padding = UDim.new(0, 8)
+    playersContainer.SortOrder = Enum.SortOrder.Name
+    
+    playersContainer:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playersContainer.AbsoluteContentSize.Y)
+    end)
+    
+    local dragStartPos = nil
+    local dragStartMouse = nil
+    local draggingFrame = false
+    
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingFrame = true
+            dragStartMouse = input.Position
+            dragStartPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    draggingFrame = false
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingFrame and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStartMouse
+            mainFrame.Position = UDim2.new(
+                dragStartPos.X.Scale, 
+                dragStartPos.X.Offset + delta.X,
+                dragStartPos.Y.Scale, 
+                dragStartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    PlayersUI = screenGui
+    return screenGui
+end
+
+local function CreatePlayerButton(playerObj)
+    local button = Instance.new("ImageButton")
+    button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    button.BackgroundTransparency = 0
+    button.BorderSizePixel = 0
+    button.Size = UDim2.new(1, 0, 0, 55)
+    button.AutoButtonColor = false
+    
+    local corner = Instance.new("UICorner", button)
+    corner.CornerRadius = UDim.new(0, 10)
+    
+    button.MouseEnter:Connect(function()
+        if selectedPlayerForUI ~= playerObj then
+            button.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+        end
+    end)
+    button.MouseLeave:Connect(function()
+        if selectedPlayerForUI ~= playerObj then
+            button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+        end
+    end)
+    
+    local avatar = Instance.new("ImageLabel")
+    avatar.Parent = button
+    avatar.Size = UDim2.new(0, 40, 0, 40)
+    avatar.Position = UDim2.new(0, 8, 0.5, -20)
+    avatar.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    avatar.BackgroundTransparency = 0
+    avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    
+    local avatarCorner = Instance.new("UICorner", avatar)
+    avatarCorner.CornerRadius = UDim.new(1, 0)
+    
+    task.spawn(function()
+        local success, thumb = pcall(function()
+            return Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+        end)
+        if success and thumb and avatar.Parent then
+            avatar.Image = thumb
+        end
+    end)
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Parent = button
+    nameLabel.Size = UDim2.new(1, -60, 0, 20)
+    nameLabel.Position = UDim2.new(0, 55, 0, 10)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = playerObj.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextSize = 14
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local displayLabel = Instance.new("TextLabel")
+    displayLabel.Parent = button
+    displayLabel.Size = UDim2.new(1, -60, 0, 16)
+    displayLabel.Position = UDim2.new(0, 55, 0, 30)
+    displayLabel.BackgroundTransparency = 1
+    displayLabel.Text = playerObj.DisplayName
+    displayLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
+    displayLabel.TextSize = 11
+    displayLabel.Font = Enum.Font.Gotham
+    displayLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local idLabel = Instance.new("TextLabel")
+    idLabel.Parent = button
+    idLabel.Size = UDim2.new(0, 80, 0, 14)
+    idLabel.Position = UDim2.new(1, -85, 0, 20)
+    idLabel.BackgroundTransparency = 1
+    idLabel.Text = playerObj.UserId
+    idLabel.TextColor3 = Color3.fromRGB(100, 100, 110)
+    idLabel.TextSize = 10
+    idLabel.Font = Enum.Font.Gotham
+    idLabel.TextXAlignment = Enum.TextXAlignment.Right
+    
+    button.MouseButton1Click:Connect(function()
+        selectedPlayerForUI = playerObj
+        
+        for _, btn in pairs(playerButtons) do
+            if btn.button and btn.button.Parent then
+                btn.button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+            end
+        end
+        
+        button.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+        
+        currentSelectedPlayer = playerObj
+        if infoParagraph then
+            updateInfoParagraph(currentSelectedPlayer)
+        end
+        
+        AddNotification("OZ HUB", "Selecionado: " .. playerObj.Name, 2)
+    end)
+    
+    return button
+end
+
+local function RefreshPlayersList()
+    if not playersContainer then return end
+    
+    for _, child in pairs(playersContainer:GetChildren()) do
+        if child:IsA("ImageButton") then
+            child:Destroy()
+        end
+    end
+    playerButtons = {}
+    
+    local searchText = searchBox and searchBox.Text:lower() or ""
+    local filteredList = {}
+    
+    for _, plr in pairs(allPlayersList) do
+        if plr ~= player then
+            if searchText == "" or plr.Name:lower():find(searchText) or plr.DisplayName:lower():find(searchText) then
+                table.insert(filteredList, plr)
+            end
+        end
+    end
+    
+    table.sort(filteredList, function(a, b)
+        return a.Name:lower() < b.Name:lower()
+    end)
+    
+    for _, plr in pairs(filteredList) do
+        local button = CreatePlayerButton(plr)
+        button.Parent = playersContainer
+        
+        table.insert(playerButtons, {
+            player = plr,
+            button = button
+        })
+        
+        if selectedPlayerForUI == plr then
+            button.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+        end
+    end
+end
+
+local function UpdatePlayersCache()
+    local changed = false
+    if #allPlayersList ~= #Players:GetPlayers() - 1 then
+        changed = true
+    else
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr == player then continue end
+            local found = false
+            for _, existing in pairs(allPlayersList) do
+                if existing == plr then
+                    found = true
+                    break
+                end
+            end
+            if not found then
+                changed = true
+                break
+            end
+        end
+    end
+    
+    if changed then
+        allPlayersList = {}
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(allPlayersList, plr)
+            end
+        end
+        
+        if PlayersUI and PlayersUI.Enabled then
+            RefreshPlayersList()
+        end
+    end
+end
+
+CreatePlayersUI()
+
+Players.PlayerAdded:Connect(function(plr)
+    UpdatePlayersCache()
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    if selectedPlayerForUI == plr then
+        selectedPlayerForUI = nil
+    end
+    if currentSelectedPlayer == plr then
+        currentSelectedPlayer = nil
+        updateInfoParagraph(player)
+    end
+    UpdatePlayersCache()
+end)
+
+searchBox.Changed:Connect(function(prop)
+    if prop == "Text" and PlayersUI and PlayersUI.Enabled then
+        RefreshPlayersList()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if PlayersUI and PlayersUI.Enabled then
+            UpdatePlayersCache()
+        end
+    end
+end)
+
+-- ============================================
 -- BOTÃO FLUTUANTE E UI PRINCIPAL
 -- ============================================
     
@@ -1751,11 +2013,28 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
+-- Sincronizar UI de jogadores com a WindUI
+local function SyncPlayersUI()
+    if Window.Visible then
+        if PlayersUI then
+            UpdatePlayersCache()
+            RefreshPlayersList()
+            PlayersUI.Enabled = true
+        end
+    else
+        if PlayersUI then
+            PlayersUI.Enabled = false
+        end
+    end
+end
+
 floatingButton.MouseButton1Click:Connect(function()
     if Window.Visible then
         Window:Close()
+        if PlayersUI then PlayersUI.Enabled = false end
     else
         Window:Open()
+        SyncPlayersUI()
     end
 end)
 
@@ -2051,95 +2330,78 @@ ExploitTab:Button({
     end
 })
 
--- ========== ONLINES TAB ==========
+-- ========== ONLINES TAB (SÓ AÇÕES) ==========
 local OnlinesTab = Window:Tab({Title = "Onlines", Icon = "users"})
 
 local infoSection = OnlinesTab:Section({ Title = "Informações do Jogador", Opened = true })
 local infoParagraph = nil
 
+local thumbnailCache = {}
+
+local function getHeadshot(plr)
+    return Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+end
+
+local function getCachedHeadshot(plr)
+    if thumbnailCache[plr] then
+        return thumbnailCache[plr]
+    end
+    local success, thumb = pcall(function()
+        return getHeadshot(plr)
+    end)
+    if success then
+        thumbnailCache[plr] = thumb
+        return thumb
+    end
+    return nil
+end
+
 local function updateInfoParagraph(plr)
     if infoParagraph then
         infoParagraph:Destroy()
+        infoParagraph = nil
     end
     if not plr then return end
-    
     infoParagraph = infoSection:Paragraph({
         Title = plr.DisplayName .. " (" .. plr.Name .. ")",
         Desc = "ID: " .. plr.UserId,
-        Image = getHeadshot(plr),
+        Image = getCachedHeadshot(plr),
         ImageSize = 50,
     })
 end
 
 updateInfoParagraph(player)
 
-local thumbnailCache = {}
-
-local function getCachedHeadshot(plr)
-    if thumbnailCache[plr] then
-        return thumbnailCache[plr]
-    end
-    local thumb = getHeadshot(plr)
-    thumbnailCache[plr] = thumb
-    return thumb
-end
-
-local function atualizarListaJogadores()
-    local lista = {}
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            table.insert(lista, {
-                Title = plr.Name,
-                Icon = getCachedHeadshot(plr),
-                Player = plr,
-            })
-        end
-    end
-    return lista
-end
-
-local playerDropdown = OnlinesTab:Dropdown({
-    Title = "Selecionar Jogador",
-    Values = atualizarListaJogadores(),
-    Default = "Ninguem",
-    Callback = function(opt)
-        if opt and opt.Player then
-            currentSelectedPlayer = opt.Player
-            updateInfoParagraph(currentSelectedPlayer)
-        end
-    end
-})
-
-OnlinesTab:Section({ Title = "Acoes" })
+OnlinesTab:Section({ Title = "Ações com o jogador selecionado" })
 
 OnlinesTab:Button({
-    Title = "Copy ID",
+    Title = "📋 Copy ID",
     Callback = function()
-        if not currentSelectedPlayer then
-            AddNotification("OZ HUB", "Selecione um jogador primeiro", 3)
+        if not selectedPlayerForUI then
+            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
             return
         end
         if setclipboard then
-            setclipboard(tostring(currentSelectedPlayer.UserId))
-            AddNotification("OZ HUB", "ID copiado: " .. currentSelectedPlayer.UserId, 3)
+            setclipboard(tostring(selectedPlayerForUI.UserId))
+            AddNotification("OZ HUB", "ID copiado: " .. selectedPlayerForUI.UserId, 3)
         end
     end
 })
 
 OnlinesTab:Button({
-    Title = "Spectate",
+    Title = "👁️ Spectate",
     Callback = function()
-        if not currentSelectedPlayer then
-            AddNotification("OZ HUB", "Selecione um jogador primeiro", 3)
+        if not selectedPlayerForUI then
+            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
             return
         end
         stopAll()
-        local char = currentSelectedPlayer.Character
+        local char = selectedPlayerForUI.Character
         if char and char:FindFirstChild("Humanoid") then
             camera.CameraSubject = char.Humanoid
             camera.CameraType = Enum.CameraType.Custom
             Settings.spectateActive = true
-            AddNotification("OZ HUB", "Spectate em: " .. currentSelectedPlayer.Name, 3)
+            AddNotification("OZ HUB", "Spectate em: " .. selectedPlayerForUI.Name, 3)
         else
             AddNotification("OZ HUB", "Jogador sem personagem", 3)
         end
@@ -2147,18 +2409,18 @@ OnlinesTab:Button({
 })
 
 OnlinesTab:Button({
-    Title = "Teleport",
+    Title = "✨ Teleport",
     Callback = function()
-        if not currentSelectedPlayer then
-            AddNotification("OZ HUB", "Selecione um jogador primeiro", 3)
+        if not selectedPlayerForUI then
+            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
             return
         end
         stopAll()
-        local targetChar = currentSelectedPlayer.Character
+        local targetChar = selectedPlayerForUI.Character
         local myChar = GetChar()
         if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and myChar and myChar:FindFirstChild("HumanoidRootPart") then
             myChar.HumanoidRootPart.CFrame = targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-            AddNotification("OZ HUB", "Teleportado para: " .. currentSelectedPlayer.Name, 3)
+            AddNotification("OZ HUB", "Teleportado para: " .. selectedPlayerForUI.Name, 3)
         else
             AddNotification("OZ HUB", "Jogador sem personagem", 3)
         end
@@ -2166,10 +2428,10 @@ OnlinesTab:Button({
 })
 
 OnlinesTab:Button({
-    Title = "Mochila",
+    Title = "🎒 Mochila",
     Callback = function()
-        if not currentSelectedPlayer then
-            AddNotification("OZ HUB", "Selecione um jogador primeiro", 3)
+        if not selectedPlayerForUI then
+            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
             return
         end
         if Settings.backpackActive then
@@ -2179,7 +2441,7 @@ OnlinesTab:Button({
         end
         stopAll()
         Settings.backpackActive = true
-        local targetPlayer = currentSelectedPlayer
+        local targetPlayer = selectedPlayerForUI
         LoopManager:Add("Backpack", function()
             if not Settings.backpackActive or not targetPlayer or not targetPlayer.Character then
                 LoopManager:Remove("Backpack")
@@ -2196,15 +2458,15 @@ OnlinesTab:Button({
                 end
             end
         end, 0)
-        AddNotification("OZ HUB", "Mochila ativado em: " .. currentSelectedPlayer.Name, 3)
+        AddNotification("OZ HUB", "Mochila ativado em: " .. selectedPlayerForUI.Name, 3)
     end
 })
 
 OnlinesTab:Button({
-    Title = "Headsit",
+    Title = "🪑 Headsit",
     Callback = function()
-        if not currentSelectedPlayer then
-            AddNotification("OZ HUB", "Selecione um jogador primeiro", 3)
+        if not selectedPlayerForUI then
+            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
             return
         end
         if Settings.headsitActive then
@@ -2214,7 +2476,7 @@ OnlinesTab:Button({
         end
         stopAll()
         Settings.headsitActive = true
-        local targetPlayer = currentSelectedPlayer
+        local targetPlayer = selectedPlayerForUI
         LoopManager:Add("Headsit", function()
             if not Settings.headsitActive or not targetPlayer or not targetPlayer.Character then
                 LoopManager:Remove("Headsit")
@@ -2235,12 +2497,12 @@ OnlinesTab:Button({
                 end
             end
         end, 0)
-        AddNotification("OZ HUB", "Headsit ativado em: " .. currentSelectedPlayer.Name, 3)
+        AddNotification("OZ HUB", "Headsit ativado em: " .. selectedPlayerForUI.Name, 3)
     end
 })
 
 OnlinesTab:Button({
-    Title = "Stop All",
+    Title = "⏹️ Stop All",
     Callback = function()
         if not (Settings.backpackActive or Settings.headsitActive or Settings.spectateActive) then
             AddNotification("OZ HUB", "Nenhuma acao ativa", 3)
@@ -2250,48 +2512,6 @@ OnlinesTab:Button({
         AddNotification("OZ HUB", "Todas as acoes paradas", 3)
     end
 })
-
-local dropdownBusy = false
-local dropdownCache = {}
-
-function atualizarDropdown()
-    if dropdownBusy then return end
-    dropdownBusy = true
-    task.spawn(function()
-        local novaLista = {}
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player then
-                if not dropdownCache[plr] then
-                    dropdownCache[plr] = {
-                        Title = plr.Name,
-                        Icon = getCachedHeadshot(plr),
-                        Player = plr
-                    }
-                end
-                table.insert(novaLista, dropdownCache[plr])
-            end
-        end
-        playerDropdown:Refresh(novaLista)
-        dropdownBusy = false
-    end)
-end
-
-Players.PlayerAdded:Connect(function(plr)
-    task.delay(0.5, function()
-        atualizarDropdown()
-    end)
-end)
-
-Players.PlayerRemoving:Connect(function(plr)
-    if currentSelectedPlayer == plr then
-        currentSelectedPlayer = nil
-        updateInfoParagraph(player)
-    end
-    thumbnailCache[plr] = nil
-    dropdownCache[plr] = nil
-
-    atualizarDropdown()
-end)
 
 -- ========== MM2 TAB ==========
 local function encontrarPorPapel(papelAlvo)
@@ -2439,14 +2659,14 @@ GraphicsTab:Toggle({
             workspace.Terrain.WaterWaveSize = 0
             workspace.Terrain.WaterReflectance = 0
             workspace.Terrain.WaterTransparency = 0
-            setfpscap(240)
+            pcall(function() setfpscap(240) end)
             AddNotification("OZ HUB", "Modo Performance ativado", 3)
         else
             if Settings.OriginalBrightness then Lighting.Brightness = Settings.OriginalBrightness end
             if Settings.OriginalGlobalShadows ~= nil then Lighting.GlobalShadows = Settings.OriginalGlobalShadows end
             Lighting.FogEnd = 100000
             Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-            setfpscap(60)
+            pcall(function() setfpscap(60) end)
             AddNotification("OZ HUB", "Modo Performance desativado", 3)
         end
     end
@@ -2540,25 +2760,13 @@ end)
 local eventConnections = {}
 
 table.insert(eventConnections, player.CharacterAdded:Connect(function(char)
-    task.spawn(function()
-        task.wait(0.5)
-        if Settings.flying then startFly() end
-        if Settings.NoClipEnabled then
-            aplicarNoClip()
-        end
-        if selectedAnimationPack then
-            aplicarPack(ANIMATION_PACKS[selectedAnimationPack])
-        end
-        if Settings.SpeedToggleEnabled then
-            aplicarSpeed()
-        end
-        if Settings.FOVCamToggleEnabled then
-            aplicarFov()
-        end
-        if Settings.ESPMM2Enabled then
-            iniciarESPMM2()
-        end
-    end)
+    task.wait(0.5)
+    if Settings.flying then startFly() end
+    if Settings.NoClipEnabled then aplicarNoClip() end
+    if selectedAnimationPack then aplicarPack(ANIMATION_PACKS[selectedAnimationPack]) end
+    if Settings.SpeedToggleEnabled then aplicarSpeed() end
+    if Settings.FOVCamToggleEnabled then aplicarFov() end
+    if Settings.ESPMM2Enabled then iniciarESPMM2() end
 end))
 
 table.insert(eventConnections, player.CharacterRemoving:Connect(function()
@@ -2569,18 +2777,9 @@ end))
 
 table.insert(eventConnections, Players.PlayerAdded:Connect(function(plr)
     if plr == player then return end
-    
-    task.spawn(function()
-        task.wait(0.5)
-
-        if Settings.ESPEnabled then
-            setupESPForPlayer(plr)
-        end
-
-        if Settings.ESPMM2Enabled then
-            iniciarESPMM2() 
-        end
-    end)
+    task.wait(0.5)
+    if Settings.ESPEnabled then setupESPForPlayer(plr) end
+    if Settings.ESPMM2Enabled then iniciarESPMM2() end
 end))
 
 table.insert(eventConnections, Players.PlayerRemoving:Connect(function(plr)
@@ -2590,14 +2789,9 @@ end))
 for _, plr in ipairs(Players:GetPlayers()) do
     if plr ~= player then
         plr.CharacterAdded:Connect(function()
-            task.delay(0.5, function()
-                if Settings.ESPEnabled then
-                    setupESPForPlayer(plr)
-                end
-                if Settings.ESPMM2Enabled then
-                    iniciarESPMM2()
-                end
-            end)
+            task.wait(0.5)
+            if Settings.ESPEnabled then setupESPForPlayer(plr) end
+            if Settings.ESPMM2Enabled then iniciarESPMM2() end
         end)
     end
 end
@@ -2628,7 +2822,6 @@ Window:OnDestroy(function()
     LoopManager.tasks = {}
     
     stopESP()
-    
     pararESPMM2()
     
     if clickConnection then
@@ -2698,6 +2891,7 @@ Window:OnDestroy(function()
     end
     
     if floatingGui then floatingGui:Destroy() end
+    if PlayersUI then PlayersUI:Destroy() end
     
     coinCache = {}
     lastPositions = {}
