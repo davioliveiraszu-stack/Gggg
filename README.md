@@ -1,2898 +1,2183 @@
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
-local SoundService = game:GetService("SoundService")
+// ============================================================================
+// INCLUDES
+// ============================================================================
+#include <a_samp>
+#include <streamer>
+#include <sscanf2>
+#include <DOF2>
+#include <zcmd>
 
-local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+#pragma disablerecursion
 
--- ============================================
--- RGB GLOBAL
--- ============================================
-local rgbHue = 0
-local rgbConnection = nil
-local rgbListeners = {}
+// ============================================================================
+// DEFINES
+// ============================================================================
 
-local function GetRainbowColor(offset)
-    local hue = (rgbHue + (offset or 0)) % 1
-    return Color3.fromHSV(hue, 1, 1)
-end
+#if defined MAX_VEHICLES
+    #undef MAX_VEHICLES
+    #define MAX_VEHICLES (1500)
+#endif
 
-local function StartGlobalRainbow()
-    if rgbConnection then return end
-    rgbConnection = RunService.RenderStepped:Connect(function()
-        rgbHue = (rgbHue + 0.002) % 1
-        for _, callback in pairs(rgbListeners) do
-            callback(rgbHue)
-        end
-    end)
-end
+#if       defined MAX_PLAYERS
+#undef    MAX_PLAYERS
+#define   MAX_PLAYERS     (150)  
+#endif
 
-local function StopGlobalRainbow()
-    if next(rgbListeners) == nil and rgbConnection then
-        rgbConnection:Disconnect()
-        rgbConnection = nil
-    end
-end
+#define MAX_VEICULOS_ORG       5
+#define MAX_SLOTS_COFRE        20
+#define MAX_MEMBROS_ORG        50
+#define MAX_ORGS               10
+#define MATERIAL_INICIAL       100000
 
-local function AddRainbowListener(id, callback)
-    rgbListeners[id] = callback
-    StartGlobalRainbow()
-end
+#define ORG_TIPO_CRIMINOSA     0
+#define ORG_TIPO_CORPORACAO    1
 
-local function RemoveRainbowListener(id)
-    rgbListeners[id] = nil
-    StopGlobalRainbow()
-end
+// ============================================================================
+// ENUMS
+// ============================================================================
 
--- ============================================
--- SISTEMA DE NOTIFICAÇÃO
--- ============================================
-local NotificationHolder = nil
-local notificacoesAtivas = {}
+enum 
+{
+	DIALOG_REGISTRO,
+	DIALOG_LOGAR,
+    DIALOG_ORG_MAIN,
+    DIALOG_ORG_CRIAR,
+    DIALOG_ORG_LISTA,
+    DIALOG_ORG_GERENCIAR,
+    DIALOG_ORG_SETAR_ID,
+    DIALOG_ORG_SETAR_SEL,
+    DIALOG_ORG_COFRE_MENU,
+    DIALOG_ORG_COFRE_ARMAS,
+    DIALOG_ORG_COFRE_DEP_A,
+    DIALOG_ORG_COFRE_RET_A,
+    DIALOG_ORG_TIPO,
+    DIALOG_ORG_MENU,
+    DIALOG_ORG_CONVIDAR,
+    DIALOG_ORG_MEMBRO_ACAO,
+    DIALOG_ORG_VEICULO,
+    DIALOG_ORG_CONFIG_VEIC,
+    DIALOG_ORG_CONFIRMAR_RESET,
+    DIALOG_ORG_CONFIRMAR_EXCLUIR,
+    DIALOG_ORG_SAIR,
+    DIALOG_ORG_COFRE_DEP_DIN,
+    DIALOG_ORG_COFRE_SACAR_DIN,
+    DIALOG_ORG_ARSENAL_ITENS,
+    DIALOG_ORG_MATERIAL,
+    DIALOG_ORG_COFRE_DEPOSITAR,
+    DIALOG_ORG_COFRE_RETIRAR,
+    DIALOG_ORG_ESCOLHER_COR,
+    DIALOG_ORG_MEMBROS,
+    DIALOG_ORG_FARDA_MENU,
+    DIALOG_ORG_SKIN
+};
 
-local function CreateNotificationHolder()
-    if NotificationHolder then return end
-    
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "OzHubNotifications"
-    gui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
-    gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    local holder = Instance.new("Frame")
-    holder.Name = "NotificationHolder"
-    holder.Parent = gui
-    holder.Size = UDim2.new(0, 280, 0, 0)
-    holder.Position = UDim2.new(0, 15, 1, -15)
-    holder.AnchorPoint = Vector2.new(0, 1)
-    holder.BackgroundTransparency = 1
-    holder.AutomaticSize = Enum.AutomaticSize.Y
-    holder.ClipsDescendants = false
-    
-    local layout = Instance.new("UIListLayout", holder)
-    layout.Padding = UDim.new(0, 10)
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-    
-    NotificationHolder = holder
-end
+enum pInfo {
+    pAdmin,
+    pDinheiro,
+    pSkin,
+    pSkinFardado,
+    pInterior,
+    pVirtualWorld,
+    Float:pPosX,
+    Float:pPosY,
+    Float:pPosZ,
+    Float:pPosR,
+    Float:pVida,
+    Float:pArmour,
+    pOrgID,
+    pOrgCargo,
+    bool:pLogado,
+    bool:pFardado
+};
 
-local function PlayNotificationSound()
-    local sound = Instance.new("Sound")
-    sound.SoundId = "rbxassetid://71450094482101"
-    sound.Volume = 1
-    sound.Parent = SoundService
-    sound:Play()
-    sound.Ended:Connect(function()
-        sound:Destroy()
-    end)
-end
+enum E_MEMBRO_DATA {
+    MembroNome[MAX_PLAYER_NAME],
+    MembroCargo,
+    bool:MembroAtivo
+};
 
-local function AddNotification(title, content, duration)
-    CreateNotificationHolder()
-    PlayNotificationSound()
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-    frame.BackgroundTransparency = 0.2
-    frame.AutomaticSize = Enum.AutomaticSize.Y
-    frame.BorderSizePixel = 0
-    frame.ClipsDescendants = true
-    frame.LayoutOrder = #notificacoesAtivas + 1
-    frame.Parent = NotificationHolder
-    frame.Transparency = 1
-    
-    local corner = Instance.new("UICorner", frame)
-    corner.CornerRadius = UDim.new(0, 12)
-    
-    local stroke = Instance.new("UIStroke", frame)
-    stroke.Thickness = 1.5
-    stroke.Color = GetRainbowColor(#notificacoesAtivas * 0.2)
-    stroke.Transparency = 0.3
-    
-    local padding = Instance.new("UIPadding", frame)
-    padding.PaddingLeft = UDim.new(0, 14)
-    padding.PaddingRight = UDim.new(0, 14)
-    padding.PaddingTop = UDim.new(0, 12)
-    padding.PaddingBottom = UDim.new(0, 12)
-    
-    local titleLabel = Instance.new("TextLabel", frame)
-    titleLabel.Text = title
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 14
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Size = UDim2.new(1, 0, 0, 20)
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    
-    local contentLabel = Instance.new("TextLabel", frame)
-    contentLabel.Text = content
-    contentLabel.Font = Enum.Font.Gotham
-    contentLabel.TextSize = 12
-    contentLabel.TextColor3 = Color3.fromRGB(180, 180, 190)
-    contentLabel.BackgroundTransparency = 1
-    contentLabel.Size = UDim2.new(1, 0, 0, 18)
-    contentLabel.TextXAlignment = Enum.TextXAlignment.Left
-    contentLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    contentLabel.Position = UDim2.new(0, 0, 0, 22)
-    
-    frame.Size = UDim2.new(1, 0, 0, 52)
-    
-    local notifData = {
-        frame = frame,
-        stroke = stroke,
-        offset = #notificacoesAtivas * 0.12,
-        duration = duration or 5,
-        progressBar = nil
+enum E_ORG_DATA {
+    bool:OrgCriada,
+    OrgNome[50],
+    OrgTipo,
+    OrgCor,
+    OrgDono[MAX_PLAYER_NAME],
+    bool:TemDono,
+    OrgDinheiro,
+    OrgMaterial,
+    bool:CofreStatus,
+    Float:CofreX,
+    Float:CofreY,
+    Float:CofreZ,
+    Text3D:CofreText,
+    ObjCofre,
+    SkinOrg,
+    Float:VeicPickupX, 
+    Float:VeicPickupY, 
+    Float:VeicPickupZ,
+    PickupVeiculo,
+    Text3D:VeicText,
+    Float:FardaX, 
+    Float:FardaY, 
+    Float:FardaZ,
+    PickupFarda,
+    Text3D:FardaText,
+    Float:ArsenalX, 
+    Float:ArsenalY, 
+    Float:ArsenalZ,
+    PickupArsenal,
+    Text3D:ArsenalText,
+    bool:ArsenalStatus
+};
+
+enum E_COFRE_SLOT {
+    CofreArmaID,
+    CofreArmaMunicao
+};
+
+enum E_VEICULO_DATA {
+    vModelo,
+    Float:vX, 
+    Float:vY, 
+    Float:vZ, 
+    Float:vA,
+    vID_Atual,
+    bool:vSpawnado,
+    NomeModelo[32]
+};
+
+new PlayerInfo[MAX_PLAYERS][pInfo];
+new OrgMembros[MAX_ORGS][MAX_MEMBROS_ORG][E_MEMBRO_DATA];
+new OrgMembrosCount[MAX_ORGS];
+new OrgDados[MAX_ORGS][E_ORG_DATA];
+new OrgArmas[MAX_ORGS][MAX_SLOTS_COFRE][E_COFRE_SLOT];
+new OrgFrota[MAX_ORGS][MAX_VEICULOS_ORG][E_VEICULO_DATA];
+
+new VeiculosCorporacao[] = {
+    427,  // Police Car (LSPD)
+    490,  // Police Car (FBI)
+    596,  // Police Car (LVPD)
+    528,  // Police Truck (SWAT)
+    523   // HPV1000 (Police Motorcycle)
+};
+
+new VeiculosCriminosa[] = {
+    550,  // Sunrise
+    482,  // Burrito
+    440,  // Rumpo
+    463,  // Freeway (Moto)
+    560   // Sultan
+};
+
+// ============================================================================
+// VARIÁVEIS GLOBAIS
+// ============================================================================
+
+new PlayerVeiculoID[MAX_PLAYERS] = {0, ...};
+
+new MenuOrgSelecionada[MAX_PLAYERS];
+new MenuPlayerAlvoID[MAX_PLAYERS];
+new MenuSlotSelecionado[MAX_PLAYERS];
+new MenuCargoSelecionado[MAX_PLAYERS];
+new MenuMembroIndex[MAX_PLAYERS];
+
+new CoresOrg[][] = {
+    {0x66CCFFAA, "Azul"},
+    {0xFF3333AA, "Vermelho"},
+    {0x33FF33AA, "Verde"},
+    {0xFFCC00AA, "Amarelo"},
+    {0xFF66FFAA, "Rosa"},
+    {0xFF9933AA, "Laranja"},
+    {0x9933FFAA, "Roxo"},
+    {0xFFFFFFAA, "Branco"},
+    {0x000000AA, "Preto"},
+    {0x00FFFFAA, "Ciano"}
+};
+
+new NomesVeiculos[][] = {
+    {"Landstalker"}, {"Bravura"}, {"Buffalo"}, {"Linerunner"}, {"Perrenial"}, {"Sentinel"},
+    {"Dumper"}, {"Firetruck"}, {"Trashmaster"}, {"Stretch"}, {"Manana"}, {"Infernus"},
+    {"Voodoo"}, {"Pony"}, {"Mule"}, {"Cheetah"}, {"Ambulance"}, {"Leviathan"},
+    {"Moonbeam"}, {"Esperanto"}, {"Taxi"}, {"Washington"}, {"Bobcat"}, {"Mr Whoopee"},
+    {"BF Injection"}, {"Hunter"}, {"Premier"}, {"Enforcer"}, {"Securicar"}, {"Banshee"},
+    {"Predator"}, {"Bus"}, {"Rhino"}, {"Barracks"}, {"Hotknife"}, {"Trailer"},
+    {"Previon"}, {"Coach"}, {"Cabbie"}, {"Stallion"}, {"Rumpo"}, {"RC Bandit"},
+    {"Romero"}, {"Packer"}, {"Monster"}, {"Admiral"}, {"Squalo"}, {"Seasparrow"},
+    {"Pizzaboy"}, {"Tram"}, {"Trailer"}, {"Turismo"}, {"Speeder"}, {"Reefer"},
+    {"Tropic"}, {"Flatbed"}, {"Yankee"}, {"Caddy"}, {"Solair"}, {"Berkley's RC"},
+    {"Skimmer"}, {"PCJ-600"}, {"Faggio"}, {"Freeway"}, {"RC Baron"}, {"RC Raider"},
+    {"Glendale"}, {"Oceanic"}, {"Sanchez"}, {"Sparrow"}, {"Patriot"}, {"Quad"},
+    {"Coastguard"}, {"Dinghy"}, {"Hermes"}, {"Sabre"}, {"Rustler"}, {"ZR-350"},
+    {"Walton"}, {"Regina"}, {"Comet"}, {"BMX"}, {"Burrito"}, {"Camper"},
+    {"Marquis"}, {"Baggage"}, {"Dozer"}, {"Maverick"}, {"News Chopper"}, {"Rancher"},
+    {"FBI Rancher"}, {"Virgo"}, {"Greenwood"}, {"Jetmax"}, {"Hotring"}, {"Sandking"},
+    {"Blista Compact"}, {"Police Maverick"}, {"Boxville"}, {"Benson"}, {"Mesa"},
+    {"RC Goblin"}, {"Hotring Racer A"}, {"Hotring Racer B"}, {"Bloodring Banger"},
+    {"Rancher"}, {"Super GT"}, {"Elegant"}, {"Journey"}, {"Bike"}, {"Mountain Bike"},
+    {"Beagle"}, {"Cropduster"}, {"Stunt"}, {"Tanker"}, {"Roadtrain"}, {"Nebula"},
+    {"Majestic"}, {"Buccaneer"}, {"Shamal"}, {"Hydra"}, {"FCR-900"}, {"NRG-500"},
+    {"HPV1000"}, {"Cement Truck"}, {"Tow Truck"}, {"Fortune"}, {"Cadrona"}, {"FBI Truck"},
+    {"Willard"}, {"Forklift"}, {"Tractor"}, {"Combine"}, {"Feltzer"}, {"Remington"},
+    {"Slamvan"}, {"Blade"}, {"Freight"}, {"Streak"}, {"Vortex"}, {"Vincent"},
+    {"Bullet"}, {"Clover"}, {"Sadler"}, {"Firetruck LA"}, {"Hustler"}, {"Intruder"},
+    {"Primo"}, {"Cargobob"}, {"Tampa"}, {"Sunrise"}, {"Merit"}, {"Utility Van"},
+    {"Nevada"}, {"Yosemite"}, {"Windsor"}, {"Monster A"}, {"Monster B"}, {"Uranus"},
+    {"Jester"}, {"Sultan"}, {"Stratum"}, {"Elegy"}, {"Raindance"}, {"RC Tiger"},
+    {"Flash"}, {"Tahoma"}, {"Savanna"}, {"Bandito"}, {"Freight Flat"}, {"Streak Carriage"},
+    {"Kart"}, {"Mower"}, {"Dune"}, {"Sweeper"}, {"Broadway"}, {"Tornado"},
+    {"AT400"}, {"DFT-30"}, {"Huntley"}, {"Stafford"}, {"BF-400"}, {"News Van"},
+    {"Tug"}, {"Petrol Trailer"}, {"Emperor"}, {"Wayfarer"}, {"Euros"}, {"Hotdog"},
+    {"Club"}, {"Freight Box"}, {"Trailer"}, {"Andromada"}, {"Dodo"}, {"RC Cam"},
+    {"Launch"}, {"Police Car LSPD"}, {"Police Car SFPD"}, {"Police Car LVPD"},
+    {"Police Ranger"}, {"Picador"}, {"S.W.A.T."}, {"Alpha"}, {"Phoenix"}, {"Glendale"},
+    {"Sadler"}, {"Luggage Trailer A"}, {"Luggage Trailer B"}, {"Stair Trailer"},
+    {"Boxville"}, {"Farm Plow"}, {"Utility Trailer"}
+};
+
+static const s_AnimationLibraries[][] = {
+    "AIRPORT", "ATTRACTORS", "BAR", "BASEBALL", "BD_FIRE", "BEACH", "BENCHPRESS",
+    "BF_INJECTION", "BIKED", "BIKEH", "BIKELEAP", "BIKES", "BIKEV", "BIKE_DBZ",
+    "BMX", "BOMBER", "BOX", "BSKTBALL", "BUDDY", "BUS", "CAMERA", "CAR", "CARRY",
+    "CAR_CHAT", "CASINO", "CHAINSAW", "CHOPPA", "CLOTHES", "COACH", "COLT45",
+    "COP_AMBIENT", "COP_DVBYZ", "CRACK", "CRIB", "DAM_JUMP", "DANCING", "DEALER",
+    "DILDO", "DODGE", "DOZER", "DRIVEBYS", "FAT", "FIGHT_B", "FIGHT_C", "FIGHT_D",
+    "FIGHT_E", "FINALE", "FINALE2", "FLAME", "FLOWERS", "FOOD", "FREEWEIGHTS",
+    "GANGS", "GHANDS", "GHETTO_DB", "GOGGLES", "GRAFFITI", "GRAVEYARD", "GRENADE",
+    "GYMNASIUM", "HAIRCUTS", "HEIST9", "INT_HOUSE", "INT_OFFICE", "INT_SHOP",
+    "JST_BUISNESS", "KART", "KISSING", "KNIFE", "LAPDAN1", "LAPDAN2", "LAPDAN3",
+    "LOWRIDER", "MD_CHASE", "MD_END", "MEDIC", "MISC", "MTB", "MUSCULAR", "NEVADA",
+    "ON_LOOKERS", "OTB", "PARACHUTE", "PARK", "PAULNMAC", "PED", "PLAYER_DVBYS",
+    "PLAYIDLES", "POLICE", "POOL", "POOR", "PYTHON", "QUAD", "QUAD_DBZ", "RAPPING",
+    "RIFLE", "RIOT", "ROB_BANK", "ROCKET", "RUSTLER", "RYDER", "SCRATCHING",
+    "SHAMAL", "SHOP", "SHOTGUN", "SILENCED", "SKATE", "SMOKING", "SNIPER",
+    "SPRAYCAN", "STRIP", "SUNBATHE", "SWAT", "SWEET", "SWIM", "SWORD", "TANK",
+    "TATTOOS", "TEC", "TRAIN", "TRUCK", "UZI", "VAN", "VENDING", "VORTEX",
+    "WAYFARER", "WEAPONS", "WUZI", "WOP", "GFUNK", "RUNNINGMAN"
+};
+
+stock PreloadPlayerAnimations(playerid)
+{
+    for(new i = 0; i < sizeof(s_AnimationLibraries); i++) {
+        ApplyAnimation(playerid, s_AnimationLibraries[i], "null", 0.0, 0, 0, 0, 0, 0);
     }
-    table.insert(notificacoesAtivas, notifData)
-    
-    frame.Position = UDim2.new(1.2, 0, 0, 0)
-    frame.Transparency = 1
-    
-    local tween1 = TweenService:Create(frame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(-0.02, 0, 0, 0),
-        Transparency = 0
-    })
-    
-    local tween2 = TweenService:Create(frame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-        Position = UDim2.new(0, 0, 0, 0)
-    })
-    
-    tween1:Play()
-    tween1.Completed:Connect(function()
-        tween2:Play()
-    end)
-    
-    local progressBar = Instance.new("Frame", frame)
-    progressBar.Name = "ProgressBar"
-    progressBar.Size = UDim2.new(1, 0, 0, 2.5)
-    progressBar.Position = UDim2.new(0, 0, 1, -2.5)
-    progressBar.BackgroundColor3 = GetRainbowColor(notifData.offset)
-    progressBar.BackgroundTransparency = 0.2
-    progressBar.BorderSizePixel = 0
-    
-    local progressCorner = Instance.new("UICorner", progressBar)
-    progressCorner.CornerRadius = UDim.new(0, 2)
-    
-    notifData.progressBar = progressBar
-    
-    local startTime = tick()
-    local totalDuration = duration or 5
-    
-    local progressConnection
-    progressConnection = RunService.RenderStepped:Connect(function()
-        if not frame or not frame.Parent then
-            if progressConnection then progressConnection:Disconnect() end
-            return
-        end
-        
-        local elapsed = tick() - startTime
-        local percent = math.clamp(1 - (elapsed / totalDuration), 0, 1)
-        
-        if percent <= 0 then
-            if progressConnection then progressConnection:Disconnect() end
-        else
-            progressBar.Size = UDim2.new(percent, 0, 0, 2.5)
-            progressBar.BackgroundColor3 = GetRainbowColor(notifData.offset)
-        end
-    end)
-    
-    task.delay(duration or 5, function()
-        for i, data in pairs(notificacoesAtivas) do
-            if data.frame == frame then
-                table.remove(notificacoesAtivas, i)
-                break
-            end
-        end
-        
-        if progressConnection then progressConnection:Disconnect() end
-        
-        local exitTween = TweenService:Create(frame, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Position = UDim2.new(-1.2, 0, 0, 0),
-            Transparency = 1
-        })
-        exitTween:Play()
-        
-        exitTween.Completed:Connect(function()
-            frame:Destroy()
-        end)
-    end)
-end
-
-AddRainbowListener("Notifications", function()
-    for _, notif in pairs(notificacoesAtivas) do
-        if notif.stroke and notif.stroke.Parent then
-            notif.stroke.Color = GetRainbowColor(notif.offset or 0)
-        end
-        if notif.progressBar and notif.progressBar.Parent then
-            notif.progressBar.BackgroundColor3 = GetRainbowColor(notif.offset or 0)
-        end
-    end
-end)
-
--- ============================================
--- CONFIGURAÇÕES CENTRALIZADAS
--- ============================================
-local Settings = {
-    LockCamEnabled = false,
-    LockUIActive = false,
-    ESPEnabled = false,
-    ESPHighlight = false,
-    ESPRainbow = false,
-    ESPSkeleton = false,
-    ESPTeleportIcon = false,
-    ESPName = false,
-    ESPDistance = false,
-    ESPMM2Enabled = false,
-    SpeedToggleEnabled = false,
-    SpeedValue = 16,
-    FOVCamToggleEnabled = false,
-    FovCamValue = 70,
-    infJumpEnabled = false,
-    NoClipEnabled = false,
-    flying = false,
-    FlySpeed = 50,
-    SpinbotEnabled = false,
-    AutoFarmEnabled = false,
-    AutoFarmMoving = false,
-    AutoFarmAtivouNoClip = false,
-    backpackActive = false,
-    headsitActive = false,
-    spectateActive = false,
-    LockUI = nil,
-    MiraUI = nil,
-    emoteSpeed = 1,
-    loopEmote = false,
-    currentEmoteTrack = nil,
-    selectedAnimationPack = nil,
-    lastCoinCacheUpdate = 0,
-    PerformanceMode = false,
-    OriginalBrightness = nil,
-    OriginalGlobalShadows = nil,
-    currentSelectedPlayer = nil,
+    return 1;
 }
 
-local lastPositions = {}
-local coinCache = {}
-local ESPMM2Highlights = {}
-local bodyVelocity = nil
-local bodyGyro = nil
-local AutoFarmTween = nil
-local currentEmoteTrack = nil
-local selectedAnimationPack = nil
-local currentSelectedPlayer = nil
-local NoClipToggle = nil
-local AutoFarmToggleElement = nil
-local ESPToggle = nil
-local ESPMM2Toggle = nil
-local LockUI = nil
-local MiraUI = nil
-local jumpConnection = nil
+// ============================================================================
+// FORWARDS
+// ============================================================================
 
--- ============================================
--- FUNÇÕES UTILITÁRIAS
--- ============================================
+forward CarregarOrgs();
+forward SalvarOrgs();
+forward SaveOrgMembers(orgid);
+forward LoadOrgMembers(orgid);
+forward AtualizarMembroOffline(orgid, const nome[], cargo);
+forward GetCargoNome(org_tipo, nivel, output[], len);
+forward IsPlayerInAnyOrg(playerid);
+forward IsPlayerLeader(playerid);
+forward IsPlayerSubLeader(playerid);
+forward SendOrgMessage(orgid, color, const msg[]);
+forward LogOrgAction(orgid, playerid, const action[]);
+forward GetPlayerOrgRank(orgid, playerid);
+forward GetOrgTipoNome(orgid, output[], len);
+forward CanAccessCofre(playerid);
+forward CanAccessArsenal(playerid);
+forward GetVehicleModelName(modelid, output[], len);
+forward AtualizarFardaPlayer(playerid);
+forward RemoverPlayerWeapon(playerid, weaponid);
+forward AtualizarSkinMembros(orgid);
+forward AtualizarTextLabelsOrg(orgid);
+forward ResetarOrganizacao(orgid);
+forward ExcluirOrganizacao(orgid);
 
-local function GetChar() return player.Character end
-local function GetHRP(char) 
-    char = char or GetChar() 
-    return char and char:FindFirstChild("HumanoidRootPart") 
-end
-local function GetHumanoid(char) 
-    char = char or GetChar() 
-    return char and char:FindFirstChild("Humanoid") 
-end
+// ============================================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================================
 
--- ============================================
--- NOCLIP
--- ============================================
-local NoClipConnection = nil
+GetVehicleModelName(modelid, output[], len)
+{
+    if(modelid >= 400 && modelid <= 611) {
+        format(output, len, NomesVeiculos[modelid - 400]);
+    } else {
+        format(output, len, "Desconhecido");
+    }
+    return 1;
+}
 
-local function aplicarNoClip()
-    if not Settings.NoClipEnabled then
-        if NoClipConnection then
-            NoClipConnection:Disconnect()
-            NoClipConnection = nil
-        end
-        return
-    end
-    
-    if NoClipConnection then
-        NoClipConnection:Disconnect()
-        NoClipConnection = nil
-    end
-    
-    NoClipConnection = RunService.Stepped:Connect(function()
-        if not Settings.NoClipEnabled then
-            if NoClipConnection then
-                NoClipConnection:Disconnect()
-                NoClipConnection = nil
-            end
-            return
-        end
-        
-        local char = GetChar()
-        if not char then return end
-        
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end)
-end
+GetCargoNome(org_tipo, nivel, output[], len)
+{
+    if(org_tipo == ORG_TIPO_CRIMINOSA) 
+    {
+        new cargos[5][15] = {"Fogueteiro", "Vapor", "Gerente", "Vice-lider", "Chefe"};
+        if(nivel >= 0 && nivel < 5) format(output, len, cargos[nivel]);
+    } 
+    else if(org_tipo == ORG_TIPO_CORPORACAO) 
+    {
+        new cargos[5][20] = {"Soldado", "Sub Tenente", "Tenente", "Major", "Comandante Geral"};
+        if(nivel >= 0 && nivel < 5) format(output, len, cargos[nivel]);
+    }
+    return 1;
+}
 
-local function reverterNoClip()
-    if NoClipConnection then
-        NoClipConnection:Disconnect()
-        NoClipConnection = nil
-    end
-    
-    local char = GetChar()
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
-            end
-        end
-    end
-end
+IsPlayerInAnyOrg(playerid)
+{
+    if(PlayerInfo[playerid][pOrgID] != -1 && OrgDados[PlayerInfo[playerid][pOrgID]][OrgCriada]) {
+        return 1;
+    }
+    return 0;
+}
 
--- ============================================
--- LOOP MANAGER
--- ============================================
-local LoopManager = { tasks = {}, conn = nil }
+IsPlayerLeader(playerid)
+{
+    if(PlayerInfo[playerid][pOrgID] != -1 && PlayerInfo[playerid][pOrgCargo] == 4) {
+        return 1;
+    }
+    return 0;
+}
 
-function LoopManager:Add(name, callback, frequency)
-    if self.tasks[name] then return false end
-    self.tasks[name] = { callback = callback, frequency = frequency or 0, lastRun = 0 }
-    if not self.conn and next(self.tasks) then
-        self.conn = RunService.Heartbeat:Connect(function()
-            local now = tick()
-            for taskName, task in pairs(self.tasks) do
-                if task.frequency == 0 or (now - task.lastRun) >= task.frequency then
-                    task.lastRun = now
-                    local success, err = pcall(task.callback)
-                    if not success then 
-                        warn("[LoopManager] Erro em", taskName, err) 
-                    end
-                end
-            end
-        end)
-    end
-    return true
-end
+IsPlayerSubLeader(playerid)
+{
+    if(PlayerInfo[playerid][pOrgID] != -1 && PlayerInfo[playerid][pOrgCargo] == 3) {
+        return 1;
+    }
+    return 0;
+}
 
-function LoopManager:Remove(name)
-    self.tasks[name] = nil
-    if not next(self.tasks) and self.conn then
-        self.conn:Disconnect()
-        self.conn = nil
-    end
-end
+CanAccessCofre(playerid)
+{
+    new org = PlayerInfo[playerid][pOrgID];
+    if(org == -1) return 0;
+    if(OrgDados[org][OrgTipo] != ORG_TIPO_CRIMINOSA) return 0;
+    if(OrgDados[org][CofreStatus] == false) return 1;
+    if(IsPlayerLeader(playerid) || IsPlayerSubLeader(playerid)) return 1;
+    return 0;
+}
 
-function LoopManager:Clear()
-    self.tasks = {}
-    if self.conn then
-        self.conn:Disconnect()
-        self.conn = nil
-    end
-end
+CanAccessArsenal(playerid)
+{
+    new org = PlayerInfo[playerid][pOrgID];
+    if(org == -1) return 0;
+    if(OrgDados[org][OrgTipo] != ORG_TIPO_CORPORACAO) return 0;
+    if(OrgDados[org][ArsenalStatus] == false) return 1;
+    if(IsPlayerLeader(playerid) || IsPlayerSubLeader(playerid)) return 1;
+    return 0;
+}
 
--- ============================================
--- ESP NORMAL
--- ============================================
-
-local profileImageCache = {}
-local espData = {}  
-local photoTargets = {}
-local renderConnection = nil
-local characterConnections = {}
-
-local function getProfileImage(plr)
-    if profileImageCache[plr] then
-        return profileImageCache[plr]
-    end
-    
-    local success, content = pcall(function()
-        return Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-    end)
-    
-    if success and content then
-        profileImageCache[plr] = content
-        return content
-    end
-    return "rbxasset://textures/ui/GuiImagePlaceholder.png"
-end
-
-local function TeleportToPlayer(targetPlayer)
-    local myChar = player.Character
-    local targetChar = targetPlayer.Character
-    if not myChar or not targetChar then return end
-    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
-    if myHRP and targetHRP then
-        myHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 2)
-    end
-end
-
-local function destroyESP(plr)
-    local data = espData[plr]
-    if not data then return end
-    
-    if data.highlight then data.highlight:Destroy() end
-    if data.nameBillboard then data.nameBillboard:Destroy() end
-    if data.distBillboard then data.distBillboard:Destroy() end
-    if data.photoBillboard then data.photoBillboard:Destroy() end
-    if data.skeleton then
-        for _, line in pairs(data.skeleton) do
-            if line then line:Remove() end
-        end
-    end
-    
-    espData[plr] = nil
-    photoTargets[plr] = nil
-end
-
-local function destroyAllESP()
-    for plr, _ in pairs(espData) do
-        destroyESP(plr)
-    end
-    espData = {}
-    photoTargets = {}
-end
-
-local function setupESPForPlayer(plr)
-    if plr == player then return end
-    if espData[plr] then return end
-
-    local function onCharacterAdded(char)
-        task.wait(0.3)
-
-        local humanoid = char:FindFirstChild("Humanoid")
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local head = char:FindFirstChild("Head")
-
-        if not humanoid or not root or not head then return end
-
-        local data = {
-            char = char,
-            root = root,
-            head = head,
-            humanoid = humanoid,
-
-            highlight = nil,
-            nameBillboard = nil,
-            distBillboard = nil,
-            photoBillboard = nil,
-
-            skeleton = nil,
-            cachedParts = {},
-
-            lastPos = root.Position,
-            lastUpdate = tick()
+SendOrgMessage(orgid, color, const msg[])
+{
+    for(new i = 0; i < MAX_PLAYERS; i++) {
+        if(IsPlayerConnected(i) && PlayerInfo[i][pOrgID] == orgid) {
+            SendClientMessage(i, color, msg);
         }
+    }
+    return 1;
+}
 
-        local h = Instance.new("Highlight")
-        h.Parent = char
-        h.FillTransparency = 1
-        h.OutlineTransparency = 0
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        h.OutlineColor = Color3.fromRGB(255,255,255)
+LogOrgAction(orgid, playerid, const action[])
+{
+    new nome[MAX_PLAYER_NAME], msg[200];
+    GetPlayerName(playerid, nome, sizeof(nome));
+    format(msg, sizeof(msg), "[%s] %s: %s", OrgDados[orgid][OrgNome], nome, action);
+    SendOrgMessage(orgid, OrgDados[orgid][OrgCor], msg);
+    return 1;
+}
 
-        data.highlight = h
-
-        local nameBillboard = Instance.new("BillboardGui")
-        nameBillboard.Name = "ESP_Name"
-        nameBillboard.Parent = head
-        nameBillboard.Size = UDim2.new(0,140,0,25)
-        nameBillboard.StudsOffset = Vector3.new(0,2,0)
-        nameBillboard.AlwaysOnTop = true
-        nameBillboard.Enabled = false
-
-        local nameLabel = Instance.new("TextLabel", nameBillboard)
-        nameLabel.Size = UDim2.new(1,0,1,0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextStrokeTransparency = 0.3
-        nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextSize = 11
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-        nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
-        nameLabel.Text = plr.Name
-
-        data.nameBillboard = nameBillboard
-        data.nameLabel = nameLabel
-
-        local distBillboard = Instance.new("BillboardGui")
-        distBillboard.Name = "ESP_Distance"
-        distBillboard.Parent = root
-        distBillboard.Size = UDim2.new(0,70,0,22)
-        distBillboard.StudsOffset = Vector3.new(0,-5,0)
-        distBillboard.AlwaysOnTop = true
-        distBillboard.Enabled = false
-
-        local distLabel = Instance.new("TextLabel", distBillboard)
-        distLabel.Size = UDim2.new(1,0,1,0)
-        distLabel.BackgroundTransparency = 1
-        distLabel.TextStrokeTransparency = 0.3
-        distLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-        distLabel.Font = Enum.Font.GothamBold
-        distLabel.TextSize = 10
-        distLabel.TextXAlignment = Enum.TextXAlignment.Center
-        distLabel.TextColor3 = Color3.fromRGB(255,255,255)
-
-        data.distBillboard = distBillboard
-        data.distLabel = distLabel
-
-        local photoBillboard = Instance.new("BillboardGui")
-        photoBillboard.Name = "ESP_Photo"
-        photoBillboard.Parent = char
-        photoBillboard.Adornee = head
-        photoBillboard.Size = UDim2.new(0,25,0,25)
-        photoBillboard.StudsOffset = Vector3.new(0,8,0)
-        photoBillboard.AlwaysOnTop = true
-        photoBillboard.Enabled = false
-
-        local img = Instance.new("ImageLabel", photoBillboard)
-        img.Size = UDim2.new(1,0,1,0)
-        img.BackgroundTransparency = 1
-
-        task.delay(1.5, function()
-            if img and img.Parent then
-                img.Image = getProfileImage(plr)
-            end        
-        end)
-
-        local corner = Instance.new("UICorner", img)
-        corner.CornerRadius = UDim.new(1,0)
-
-        local stroke = Instance.new("UIStroke", img)
-        stroke.Thickness = 1.5
-        stroke.Color = Color3.fromRGB(255,255,255)
-        stroke.Transparency = 0.3
-
-        data.photoBillboard = photoBillboard
-
-        photoTargets[plr] = {
-            head = head,
-            size = 25,
-            offset = 8
+AtualizarFardaPlayer(playerid)
+{
+    new org = PlayerInfo[playerid][pOrgID];
+    new skin;
+    
+    if(OrgDados[org][OrgTipo] == ORG_TIPO_CORPORACAO && PlayerInfo[playerid][pFardado] == true) {
+        switch(PlayerInfo[playerid][pOrgCargo]){
+            case 4: skin = 286;
+            case 3: skin = 285;
+            case 2: skin = 281;
+            case 1: skin = 280;
+            case 0: skin = 282;
         }
+        SetPlayerSkin(playerid, skin);
+    } else {
+        SetPlayerSkin(playerid, PlayerInfo[playerid][pSkin]);
+    }
+}
 
-        data.cachedParts = {
-            leftArm = char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm"),
-            rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm"),
-            leftLeg = char:FindFirstChild("LeftFoot") or char:FindFirstChild("Left Leg"),
-            rightLeg = char:FindFirstChild("RightFoot") or char:FindFirstChild("Right Leg")
+AtualizarTextLabelsOrg(orgid)
+{
+    printf("AtualizarTextLabelsOrg(%d)", orgid);
+    new txt[500];
+    
+    if(OrgDados[orgid][OrgTipo] == ORG_TIPO_CRIMINOSA && OrgDados[orgid][CofreX] != 0.0 && OrgDados[orgid][CofreY] != 0.0 && OrgDados[orgid][CofreZ] != 0.0) {
+        if(OrgDados[orgid][CofreText] == Text3D:-1) {
+            format(txt, sizeof(txt), "%s\nCofre da Organizacao\nPressione 'F' para interagir", OrgDados[orgid][OrgNome]);
+            OrgDados[orgid][CofreText] = CreateDynamic3DTextLabel(txt, OrgDados[orgid][OrgCor], OrgDados[orgid][CofreX], OrgDados[orgid][CofreY], OrgDados[orgid][CofreZ]+0.5, 15.0);
+        } else {
+            format(txt, sizeof(txt), "%s\nCofre da Organizacao\nPressione 'F' para interagir", OrgDados[orgid][OrgNome]);
+            UpdateDynamic3DTextLabelText(OrgDados[orgid][CofreText], OrgDados[orgid][OrgCor], txt);
         }
-        data.rootRef = root
-        data.headRef = head
-        espData[plr] = data
-    end
-
-    if plr.Character and plr.Character.Parent then
-        onCharacterAdded(plr.Character)
-    end
-
-    if characterConnections[plr] then
-        characterConnections[plr]:Disconnect()
-    end
-
-    characterConnections[plr] = plr.CharacterAdded:Connect(function(char)
-        destroyESP(plr)
-        onCharacterAdded(char)
-    end)
-end
-
-local function initAllESP()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            setupESPForPlayer(plr)
-        end
-    end
-end
-
-local function updateHighlightColor(data)
-    if not data or not data.highlight then return end
+    }
     
-    if Settings.ESPRainbow then
-        data.highlight.OutlineColor = GetRainbowColor(0)
-    else
-        data.highlight.OutlineColor = Color3.fromRGB(255,255,255)
-    end
-end
+    if(OrgDados[orgid][VeicPickupX] != 0.0 && OrgDados[orgid][VeicPickupY] != 0.0 && OrgDados[orgid][VeicPickupZ] != 0.0) {
+        if(OrgDados[orgid][VeicText] == Text3D:-1) {
+            format(txt, sizeof(txt), "%s\nGaragem da Organizacao\nPressione 'F' para interagir", OrgDados[orgid][OrgNome]);
+            OrgDados[orgid][VeicText] = CreateDynamic3DTextLabel(txt, OrgDados[orgid][OrgCor], OrgDados[orgid][VeicPickupX], OrgDados[orgid][VeicPickupY], OrgDados[orgid][VeicPickupZ]+0.5, 15.0);
+        } else {
+            format(txt, sizeof(txt), "%s\nGaragem da Organizacao\nPressione 'F' para interagir", OrgDados[orgid][OrgNome]);
+            UpdateDynamic3DTextLabelText(OrgDados[orgid][VeicText], OrgDados[orgid][OrgCor], txt);
+        }
+    }
+    
+	if(OrgDados[orgid][OrgTipo] == ORG_TIPO_CORPORACAO && OrgDados[orgid][FardaX] != 0.0 && OrgDados[orgid][FardaY] != 0.0 && OrgDados[orgid][FardaZ] != 0.0) {
+        if(OrgDados[orgid][FardaText] == Text3D:-1) {
+            format(txt, sizeof(txt), "%s\nFarda da Corporação\nPressione 'F' para interagir", OrgDados[orgid][OrgNome]);
+            OrgDados[orgid][FardaText] = CreateDynamic3DTextLabel(txt, OrgDados[orgid][OrgCor], OrgDados[orgid][FardaX], OrgDados[orgid][FardaY], OrgDados[orgid][FardaZ]+0.5, 15.0);
+        } else {
+            format(txt, sizeof(txt), "%s\nFarda da Corporação\nPressione 'F' para interagir", OrgDados[orgid][OrgNome]);
+            UpdateDynamic3DTextLabelText(OrgDados[orgid][FardaText], OrgDados[orgid][OrgCor], txt);
+        }
+    }
+    
+    if(OrgDados[orgid][OrgTipo] == ORG_TIPO_CORPORACAO && OrgDados[orgid][ArsenalX] != 0.0 && OrgDados[orgid][ArsenalY] != 0.0 && OrgDados[orgid][ArsenalZ] != 0.0) {
+        if(OrgDados[orgid][ArsenalText] == Text3D:-1) {
+            format(txt, sizeof(txt), "%s\nArsenal - Material: %d/%d\nPressione 'F' para interagir", OrgDados[orgid][OrgNome], OrgDados[orgid][OrgMaterial], MATERIAL_INICIAL);
+            OrgDados[orgid][ArsenalText] = CreateDynamic3DTextLabel(txt, OrgDados[orgid][OrgCor], OrgDados[orgid][ArsenalX], OrgDados[orgid][ArsenalY], OrgDados[orgid][ArsenalZ]+0.5, 15.0);
+        } else {
+            format(txt, sizeof(txt), "%s\nArsenal - Material: %d/%d\nPressione 'F' para interagir", OrgDados[orgid][OrgNome], OrgDados[orgid][OrgMaterial], MATERIAL_INICIAL);
+            UpdateDynamic3DTextLabelText(OrgDados[orgid][ArsenalText], OrgDados[orgid][OrgCor], txt);
+        }
+    }
+}
 
-local function onRender()
-    if not Settings.ESPEnabled then
-        for plr, data in pairs(espData) do            
-            if data.highlight then data.highlight.Enabled = false end
-            if data.nameBillboard then data.nameBillboard.Enabled = false end
-            if data.distBillboard then data.distBillboard.Enabled = false end
-            if data.photoBillboard then data.photoBillboard.Enabled = false end
+AdicionarMembro(orgid, const nome[], cargo)
+{
+    for(new i = 0; i < MAX_MEMBROS_ORG; i++) {
+        if(!OrgMembros[orgid][i][MembroAtivo]) {
+            strmid(OrgMembros[orgid][i][MembroNome], nome, 0, strlen(nome), MAX_PLAYER_NAME);
+            OrgMembros[orgid][i][MembroCargo] = cargo;
+            OrgMembros[orgid][i][MembroAtivo] = true;
+            OrgMembrosCount[orgid]++;
+            SaveOrgMembers(orgid);
+            return i;
+        }
+    }
+    return -1;
+}
+
+RemoverMembro(orgid, const nome[])
+{
+    for(new i = 0; i < MAX_MEMBROS_ORG; i++) {
+        if(OrgMembros[orgid][i][MembroAtivo] && strcmp(OrgMembros[orgid][i][MembroNome], nome) == 0) {
+            OrgMembros[orgid][i][MembroAtivo] = false;
+            OrgMembrosCount[orgid]--;
+            SaveOrgMembers(orgid);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+AtualizarMembroOffline(orgid, const nome[], cargo)
+{
+    for(new i = 0; i < MAX_MEMBROS_ORG; i++) {
+        if(OrgMembros[orgid][i][MembroAtivo] && strcmp(OrgMembros[orgid][i][MembroNome], nome) == 0) {
+            OrgMembros[orgid][i][MembroCargo] = cargo;
+            SaveOrgMembers(orgid);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+RemoverPlayerWeapon(playerid, weaponid)
+{
+    new wData[13][2];
+    for(new slot = 0; slot < 13; slot++) {
+        GetPlayerWeaponData(playerid, slot, wData[slot][0], wData[slot][1]);
+    }
+    ResetPlayerWeapons(playerid);
+    for(new slot = 0; slot < 13; slot++) {
+        if(wData[slot][0] != weaponid && wData[slot][0] != 0) {
+            GivePlayerWeapon(playerid, wData[slot][0], wData[slot][1]);
+        }
+    }
+    return 1;
+}
+
+AtualizarSkinMembros(orgid)
+{
+    for(new i = 0; i < MAX_PLAYERS; i++) {
+        if(IsPlayerConnected(i) && PlayerInfo[i][pOrgID] == orgid && PlayerInfo[i][pFardado] == true) {
+            AtualizarFardaPlayer(i);
+        }
+    }
+}
+
+ResetarOrganizacao(orgid)
+{
+    // Primeiro: Limpa TODOS os jogadores online que pertencem a esta org
+    for(new p = 0; p < MAX_PLAYERS; p++) {
+        if(IsPlayerConnected(p) && PlayerInfo[p][pOrgID] == orgid) {
+            // Salva o nome para debug
+            new nome[MAX_PLAYER_NAME];
+            GetPlayerName(p, nome, sizeof(nome));
+            printf("[RESET] Removendo jogador online: %s (ID: %d)", nome, p);
             
-            if data.skeleton then
-                for _, line in pairs(data.skeleton) do
-                    if line then
-                        line.Visible = false
-                    end
-                end
-            end            
-        end        
-        return        
-    end
-
-    local hasHighlight = Settings.ESPHighlight
-    local hasName = Settings.ESPName
-    local hasDistance = Settings.ESPDistance
-    local hasPhoto = Settings.ESPTeleportIcon
-    local hasSkeleton = Settings.ESPSkeleton
-
-    local myChar = player.Character
-    if not myChar then return end
+            // Limpa as variáveis do jogador
+            PlayerInfo[p][pOrgID] = -1;
+            PlayerInfo[p][pOrgCargo] = 0;
+            PlayerInfo[p][pFardado] = false;
+            SalvarConta(p);
+            SetPlayerSkin(p, PlayerInfo[p][pSkin]);
+            SendClientMessage(p, -1, "A organização foi resetada! Você foi removido.");
+        }
+    }
     
-    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-    if not myHRP then return end    
-    local myPos = myHRP.Position
-
-    for plr, data in pairs(espData) do        
-        if not plr or not plr.Parent then
-            destroyESP(plr)
-            continue
-        end
-
-        local char = data.char
-        local root = data.rootRef
-        local head = data.headRef
-        local humanoid = data.humanoid
-
-        if not char or not char.Parent or not root or not root.Parent or not head or not head.Parent then            
-            destroyESP(plr)
-            continue            
-        end
-
-        if not humanoid or humanoid.Health <= 0 then
-            destroyESP(plr)
-            continue
-        end
-
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-
-        local distancia = (root.Position - myPos).Magnitude
-
-        if distancia > 300 then           
-            if data.highlight then data.highlight.Enabled = false end
-            if data.nameBillboard then data.nameBillboard.Enabled = false end
-            if data.distBillboard then data.distBillboard.Enabled = false end
-            if data.photoBillboard then data.photoBillboard.Enabled = false end
-            if data.skeleton then
-                for _, line in pairs(data.skeleton) do
-                    if line then line.Visible = false end
-                end
-            end            
-            continue            
-        end
-
-        if hasHighlight then            
-            if data.highlight then
-                data.highlight.Enabled = true
-                updateHighlightColor(data)
-            end
-        elseif data.highlight then            
-            data.highlight.Enabled = false            
-        end
-
-        if hasName and data.nameBillboard then            
-            data.nameBillboard.Enabled = true            
-            if data.nameLabel then
-                data.nameLabel.Text = plr.Name
-            end            
-        elseif data.nameBillboard then            
-            data.nameBillboard.Enabled = false            
-        end
-
-        if hasDistance and data.distBillboard and data.distLabel then            
-            data.distBillboard.Enabled = true            
-            data.distLabel.Text = math.floor(distancia) .. "m"            
-        elseif data.distBillboard then            
-            data.distBillboard.Enabled = false            
-        end
-
-        if hasPhoto and data.photoBillboard then            
-            data.photoBillboard.Enabled = true            
-        elseif data.photoBillboard then            
-            data.photoBillboard.Enabled = false            
-        end
-
-        if hasSkeleton then
-            if not data.skeleton then                
-                local skeleton = {}
-                for i = 1, 5 do                    
-                    local line = Drawing.new("Line")
-                    line.Color = Color3.fromRGB(255,255,255)
-                    line.Thickness = 1
-                    line.Visible = false                    
-                    skeleton[i] = line                    
-                end
-                data.skeleton = skeleton
-            end
-
-            if not data.cachedParts.leftArm or not data.cachedParts.leftArm.Parent then                
-                data.cachedParts.leftArm = char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm")
-                data.cachedParts.rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
-                data.cachedParts.leftLeg = char:FindFirstChild("LeftFoot") or char:FindFirstChild("Left Leg")
-                data.cachedParts.rightLeg = char:FindFirstChild("RightFoot") or char:FindFirstChild("Right Leg")
-            end
-
-            local rootPos, rootOn = camera:WorldToViewportPoint(root.Position)
-            local headPos, headOn = camera:WorldToViewportPoint(head.Position)
-
-            if rootOn and headOn and rootPos.Z > 0 and headPos.Z > 0 then
-                local lines = data.skeleton
-                local parts = data.cachedParts
-
-                lines[1].From = Vector2.new(headPos.X, headPos.Y)
-                lines[1].To = Vector2.new(rootPos.X, rootPos.Y)
-                lines[1].Visible = true
-
-                if parts.leftArm then                    
-                    local pos, on = camera:WorldToViewportPoint(parts.leftArm.Position)
-                    if on then                        
-                        lines[2].From = Vector2.new(rootPos.X, rootPos.Y)
-                        lines[2].To = Vector2.new(pos.X, pos.Y)
-                        lines[2].Visible = true                        
-                    else                        
-                        lines[2].Visible = false                        
-                    end
-                end
-
-                if parts.rightArm then                    
-                    local pos, on = camera:WorldToViewportPoint(parts.rightArm.Position)
-                    if on then                        
-                        lines[3].From = Vector2.new(rootPos.X, rootPos.Y)
-                        lines[3].To = Vector2.new(pos.X, pos.Y)
-                        lines[3].Visible = true                        
-                    else                        
-                        lines[3].Visible = false                        
-                    end
-                end
-
-                if parts.leftLeg then                    
-                    local pos, on = camera:WorldToViewportPoint(parts.leftLeg.Position)
-                    if on then                        
-                        lines[4].From = Vector2.new(rootPos.X, rootPos.Y)
-                        lines[4].To = Vector2.new(pos.X, pos.Y)
-                        lines[4].Visible = true                        
-                    else                        
-                        lines[4].Visible = false                        
-                    end
-                end
-
-                if parts.rightLeg then                    
-                    local pos, on = camera:WorldToViewportPoint(parts.rightLeg.Position)
-                    if on then                        
-                        lines[5].From = Vector2.new(rootPos.X, rootPos.Y)
-                        lines[5].To = Vector2.new(pos.X, pos.Y)
-                        lines[5].Visible = true                        
-                    else                        
-                        lines[5].Visible = false                        
-                    end
-                end
-            else                
-                for _, line in pairs(data.skeleton) do
-                    line.Visible = false
-                end                
-            end
-
-        elseif data.skeleton then
-            for _, line in pairs(data.skeleton) do
-                line.Visible = false
-            end
-        end
-    end
-end
-
-local clickConnection = nil
-
-local function startClickDetector()
-    if clickConnection then clickConnection:Disconnect() end
-    
-    clickConnection = UserInputService.InputBegan:Connect(function(input)
-        if not Settings.ESPEnabled or not Settings.ESPTeleportIcon then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
-            return
-        end
-        
-        local touchPos = UserInputService:GetMouseLocation()
-        
-        for plr, data in pairs(photoTargets) do
-            local head = data.head
-            if head and head.Parent then
-                local screenPos, visible = camera:WorldToViewportPoint(head.Position + Vector3.new(0, data.offset or 8, 0))
-                
-                if visible and screenPos.Z > 0 then
-                    local size = data.size or 25
-                    local minX = screenPos.X - size/2
-                    local maxX = screenPos.X + size/2
-                    local minY = screenPos.Y - size/2
-                    local maxY = screenPos.Y + size/2
-                    
-                    if touchPos.X >= minX and touchPos.X <= maxX and touchPos.Y >= minY and touchPos.Y <= maxY then
-                        TeleportToPlayer(plr)
-                        break
-                    end
-                end
-            end
-        end
-    end)
-end
-
-local function startESP()
-    startClickDetector()
-    initAllESP()
-    if renderConnection then renderConnection:Disconnect() end
-    renderConnection = RunService.RenderStepped:Connect(onRender)
-end
-
-local function stopESP()
-    if renderConnection then
-        renderConnection:Disconnect()
-        renderConnection = nil
-    end
-    if clickConnection then
-        clickConnection:Disconnect()
-        clickConnection = nil
-    end
-    destroyAllESP()
-end
-
--- ============================================
--- ESP MM2 (SEPARADO)
--- ============================================
-
-local function getPapel(jogador)
-    local char = jogador.Character
-    if not char then return "Inocente" end
-    
-    for _, item in pairs(char:GetChildren()) do
-        if item:IsA("Tool") then
-            local name = item.Name:lower()
-            if name:find("knife") or name:find("fade") then
-                return "Assassino"
-            end
-            if name:find("gun") or name:find("pistol") or name:find("revolver") then
-                return "Xerife"
-            end
-        end
-    end
-    
-    local backpack = jogador:FindFirstChild("Backpack")
-    if backpack then
-        for _, item in pairs(backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                local name = item.Name:lower()
-                if name:find("knife") or name:find("fade") then
-                    return "Assassino"
-                end
-                if name:find("gun") or name:find("pistol") or name:find("revolver") then
-                    return "Xerife"
-                end
-            end
-        end
-    end
-    return "Inocente"
-end
-
-local function clearESPMM2()
-    for plr, data in pairs(ESPMM2Highlights) do
-        if data.Highlight then data.Highlight:Destroy() end
-        if data.NameBillboard then data.NameBillboard:Destroy() end
-        if data.DistBillboard then data.DistBillboard:Destroy() end
-    end
-    ESPMM2Highlights = {}
-end
-
-local function atualizarESPMM2()
-    if not Settings.ESPMM2Enabled then
-        if next(ESPMM2Highlights) then clearESPMM2() end
-        return
-    end
-    
-    local myChar = GetChar()
-    if not myChar then return end
-    local myHRP = GetHRP(myChar)
-    if not myHRP then return end
-    local myPos = myHRP.Position
-    
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr == player then continue end
-        
-        local char = plr.Character
-        if not char then
-            if ESPMM2Highlights[plr] then
-                if ESPMM2Highlights[plr].Highlight then ESPMM2Highlights[plr].Highlight:Destroy() end
-                if ESPMM2Highlights[plr].NameBillboard then ESPMM2Highlights[plr].NameBillboard:Destroy() end
-                if ESPMM2Highlights[plr].DistBillboard then ESPMM2Highlights[plr].DistBillboard:Destroy() end
-                ESPMM2Highlights[plr] = nil
-            end
-            continue
-        end
-        
-        local humanoid = GetHumanoid(char)
-        local root = GetHRP(char)
-        local head = char:FindFirstChild("Head")
-        
-        if not humanoid or humanoid.Health <= 0 or not root or not head then
-            if ESPMM2Highlights[plr] then
-                if ESPMM2Highlights[plr].Highlight then ESPMM2Highlights[plr].Highlight:Destroy() end
-                if ESPMM2Highlights[plr].NameBillboard then ESPMM2Highlights[plr].NameBillboard:Destroy() end
-                if ESPMM2Highlights[plr].DistBillboard then ESPMM2Highlights[plr].DistBillboard:Destroy() end
-                ESPMM2Highlights[plr] = nil
-            end
-            continue
-        end
-        
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-        
-        local distancia = (root.Position - myPos).Magnitude
-        if distancia > 300 then
-            if ESPMM2Highlights[plr] then
-                if ESPMM2Highlights[plr].Highlight then ESPMM2Highlights[plr].Highlight:Destroy() end
-                if ESPMM2Highlights[plr].NameBillboard then ESPMM2Highlights[plr].NameBillboard:Destroy() end
-                if ESPMM2Highlights[plr].DistBillboard then ESPMM2Highlights[plr].DistBillboard:Destroy() end
-                ESPMM2Highlights[plr] = nil
-            end
-            continue
-        end
-        
-        local papel = getPapel(plr)
-        local papelCor = papel == "Assassino" and Color3.fromRGB(255,0,0) or (papel == "Xerife" and Color3.fromRGB(0,100,255) or Color3.fromRGB(0,255,0))
-        
-        if not ESPMM2Highlights[plr] then
-            local h = Instance.new("Highlight")
-            h.Parent = char
-            h.FillTransparency = 0.7
-            h.FillColor = papelCor
-            h.OutlineTransparency = 0
-            h.OutlineColor = papelCor
-            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    // Segundo: Limpa todos os membros offline nos arquivos
+    for(new i = 0; i < MAX_MEMBROS_ORG; i++) {
+        if(OrgMembros[orgid][i][MembroAtivo]) {
+            new nome_membro[MAX_PLAYER_NAME];
+            strmid(nome_membro, OrgMembros[orgid][i][MembroNome], 0, strlen(OrgMembros[orgid][i][MembroNome]), MAX_PLAYER_NAME);
             
-            local nameBillboard = Instance.new("BillboardGui")
-            nameBillboard.Parent = head
-            nameBillboard.Size = UDim2.new(0, 140, 0, 25)
-            nameBillboard.StudsOffset = Vector3.new(0, 2.2, 0)
-            nameBillboard.AlwaysOnTop = true
-            
-            local nameLabel = Instance.new("TextLabel", nameBillboard)
-            nameLabel.Size = UDim2.new(1, 0, 1, 0)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.TextStrokeTransparency = 0.3
-            nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-            nameLabel.Font = Enum.Font.GothamBold
-            nameLabel.TextSize = 11
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-            nameLabel.Text = "[" .. papel .. "] " .. plr.Name
-            nameLabel.TextColor3 = papelCor
-            
-            local distBillboard = Instance.new("BillboardGui")
-            distBillboard.Parent = root
-            distBillboard.Size = UDim2.new(0, 70, 0, 22)
-            distBillboard.StudsOffset = Vector3.new(0, -4.5, 0)
-            distBillboard.AlwaysOnTop = true
-            
-            local distLabel = Instance.new("TextLabel", distBillboard)
-            distLabel.Size = UDim2.new(1, 0, 1, 0)
-            distLabel.BackgroundTransparency = 1
-            distLabel.TextStrokeTransparency = 0.3
-            distLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
-            distLabel.Font = Enum.Font.GothamBold
-            distLabel.TextSize = 10
-            distLabel.TextXAlignment = Enum.TextXAlignment.Center
-            distLabel.TextColor3 = Color3.fromRGB(255,255,255)
-            distLabel.Text = math.floor(distancia) .. "m"
-            
-            ESPMM2Highlights[plr] = {
-                Highlight = h,
-                NameBillboard = nameBillboard,
-                NameLabel = nameLabel,
-                DistBillboard = distBillboard,
-                DistLabel = distLabel,
-                RootRef = root,
-                LastPapel = papel  
+            // Limpa arquivo do jogador offline
+            new file_path[64];
+            format(file_path, sizeof(file_path), "Contas/%s.ini", nome_membro);
+            if(DOF2_FileExists(file_path)) {
+                printf("[RESET] Removendo membro offline: %s", nome_membro);
+                DOF2_SetInt(file_path, "OrgID", -1);
+                DOF2_SetInt(file_path, "OrgCargo", 0);
+                DOF2_SetBool(file_path, "Fardado", false);
+                DOF2_SaveFile();
             }
-        else
-            local data = ESPMM2Highlights[plr]
             
-            if data.DistLabel and data.RootRef then
-                local newDist = (myPos - data.RootRef.Position).Magnitude
-                data.DistLabel.Text = math.floor(newDist) .. "m"
-            end
-            
-            if data.LastPapel ~= papel then
-                data.LastPapel = papel
-                
-                if data.Highlight then
-                    data.Highlight.FillColor = papelCor
-                    data.Highlight.OutlineColor = papelCor
-                end
-                
-                if data.NameLabel then
-                    data.NameLabel.Text = "[" .. papel .. "] " .. plr.Name
-                    data.NameLabel.TextColor3 = papelCor
-                end
-            end
-        end
-    end
-end
-
-local function iniciarESPMM2()
-    LoopManager:Add("ESP_MM2", atualizarESPMM2, 0.3)
-end
-
-local function pararESPMM2()
-    LoopManager:Remove("ESP_MM2")
-    clearESPMM2()
-end
-
--- ============================================
--- MOVIMENTO
--- ============================================
-
-local function aplicarSpeed()
-    if not Settings.SpeedToggleEnabled then return end
-    local char = GetChar()
-    if char then
-        local humanoid = GetHumanoid(char)
-        if humanoid then
-            humanoid.WalkSpeed = Settings.SpeedValue
-        end
-    end
-end
-
-local function reverterSpeed()
-    local char = GetChar()
-    if char then
-        local humanoid = GetHumanoid(char)
-        if humanoid then
-            humanoid.WalkSpeed = 16
-        end
-    end
-end
-
-local function aplicarFov()
-    if not Settings.FOVCamToggleEnabled then return end
-    if camera then
-        camera.FieldOfView = Settings.FovCamValue
-    end
-end
-
-local function reverterFov()
-    if camera then
-        camera.FieldOfView = 70
-    end
-end
-
-local function startFly()
-    local char = GetChar()
-    if not char then
-        AddNotification("OZ HUB", "Personagem nao encontrado", 3)
-        return
-    end
+            // Limpa da memória
+            format(OrgMembros[orgid][i][MembroNome], MAX_PLAYER_NAME, "");
+            OrgMembros[orgid][i][MembroAtivo] = false;
+            OrgMembros[orgid][i][MembroCargo] = 0;
+        }
+    }
+    OrgMembrosCount[orgid] = 0;
     
-    local humanoid = GetHumanoid(char)
-    local hrp = GetHRP(char)
+    // Terceiro: Reseta os dados da organização
+    if(OrgDados[orgid][OrgTipo] == ORG_TIPO_CRIMINOSA) {
+        OrgDados[orgid][OrgDinheiro] = 0;
+        for(new s = 0; s < MAX_SLOTS_COFRE; s++) {
+            OrgArmas[orgid][s][CofreArmaID] = 0;
+            OrgArmas[orgid][s][CofreArmaMunicao] = 0;
+        }
+    }
     
-    if not humanoid or not hrp then
-        AddNotification("OZ HUB", "Humanoid ou HRP nao encontrado", 3)
-        return
-    end
+    OrgDados[orgid][TemDono] = false;
+    format(OrgDados[orgid][OrgDono], MAX_PLAYER_NAME, "Nenhum");
+    OrgDados[orgid][CofreStatus] = false;
+    OrgDados[orgid][ArsenalStatus] = false;
     
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
+    if(OrgDados[orgid][OrgTipo] == ORG_TIPO_CORPORACAO) {
+        OrgDados[orgid][OrgMaterial] = MATERIAL_INICIAL;
+    }
     
-    bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Name = "FlyVelocity"
-    bodyVelocity.MaxForce = Vector3.new(999999, 999999, 999999)
-    bodyVelocity.Parent = hrp
+    // Quarto: Salva a organização sem dono
+    SalvarOrgs();
     
-    bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Name = "FlyGyro"
-    bodyGyro.MaxTorque = Vector3.new(999999, 999999, 999999)
-    bodyGyro.Parent = hrp
+    // Quinto: Limpa o arquivo de membros
+    new path[40];
+    format(path, sizeof(path), "orgs/Membros_%d.ini", orgid);
+    if(DOF2_FileExists(path)) {
+        DOF2_RemoveFile(path);
+        DOF2_CreateFile(path);
+        DOF2_SetInt(path, "TotalMembros", 0);
+        DOF2_SaveFile();
+    }
     
-    humanoid.PlatformStand = true
+    AtualizarTextLabelsOrg(orgid);
     
-    LoopManager:Add("FlyUpdate", function()
-        if not Settings.flying then return end
-        if not camera or not player.Character then return end
-        
-        local char = GetChar()
-        local hrp = GetHRP(char)
-        local humanoid = GetHumanoid(char)
-        
-        if not char or not humanoid or not hrp then
-            Settings.flying = false
-            return
-        end
-        
-        local moveDir = humanoid.MoveDirection
-        local velocity = moveDir * Settings.FlySpeed
-        
-        if moveDir.Magnitude > 0 then
-            local lookY = camera.CFrame.LookVector.Y
-            local forwardDot = moveDir:Dot(camera.CFrame.LookVector)
-            local directionFix = (forwardDot >= 0) and 1 or -1
-            velocity = velocity + Vector3.new(0, lookY * Settings.FlySpeed * directionFix, 0)
-        end
-        
-        if bodyVelocity then bodyVelocity.Velocity = velocity end
-        if bodyGyro then bodyGyro.CFrame = camera.CFrame end
-    end, 0.03)
-end
-
-local function StopFly()
-    Settings.flying = false
-    local char = GetChar()
-    if char then
-        local humanoid = GetHumanoid(char)
-        if humanoid then
-            humanoid.PlatformStand = false
-        end
-    end
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
-    bodyVelocity, bodyGyro = nil, nil
-    LoopManager:Remove("FlyUpdate")
-end
-
-local function toggleFly(state)
-    Settings.flying = state
-    if state then
-        startFly()
-    else
-        StopFly()
-    end
-end
-
-local function SpinbotTask()
-    if not Settings.SpinbotEnabled then return end
-    local char = GetChar()
-    if not char then return end
-    local hrp = GetHRP(char)
-    if hrp then
-        hrp.RotVelocity = Vector3.new(0, 150, 0)
-    end
-end
-
-local function toggleSpinbot(state)
-    Settings.SpinbotEnabled = state
-    if state then
-        LoopManager:Add("Spinbot", SpinbotTask, 0)
-    else
-        LoopManager:Remove("Spinbot")
-        local char = GetChar()
-        if char then
-            local hrp = GetHRP(char)
-            if hrp then
-                hrp.RotVelocity = Vector3.new(0, 0, 0)
-            end
-        end
-    end
-end
-
--- ============================================
--- LOCK CAM
--- ============================================
-
-local function CreateShiftLockButton()
-    if LockUI then LockUI:Destroy() end
+    // Mensagem para todos os membros (se ainda tiver algum)
+    SendOrgMessage(orgid, -1, "A organização foi resetada por um administrador!");
     
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "ShiftLockButton"
-    gui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
-    gui.ResetOnSpawn = false
-    gui.DisplayOrder = 999
-    gui.IgnoreGuiInset = true
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    local button = Instance.new("ImageButton")
-    button.Parent = gui
-    button.Name = "ShiftLockButton"
-    button.BackgroundTransparency = 1
-    button.Size = UDim2.new(0, 70, 0, 70)
-    button.Position = UDim2.new(1, -200, 0.5, -5)
-    button.Active = true
-    button.Draggable = false
-    button.BorderSizePixel = 0
-    button.AutoButtonColor = false
-    button.ZIndex = 2
-    
-    local function UpdateButtonState(active)
-        if active then
-            button.Image = "rbxassetid://139211296111194"
-        else
-            button.Image = "rbxassetid://16812589014"
-        end
-        if MiraUI then
-            MiraUI.Enabled = active
-        end
-        Settings.LockUIActive = active
-    end
-    
-    button.MouseButton1Click:Connect(function()
-        local novoEstado = not Settings.LockUIActive
-        UpdateButtonState(novoEstado)
-    end)
-    
-    UpdateButtonState(false)
-    LockUI = gui
-end
-
-local function CriarMira()
-    if MiraUI then MiraUI:Destroy() end
-    
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "MiraCentral"
-    gui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
-    gui.ResetOnSpawn = false
-    gui.DisplayOrder = 1000
-    gui.IgnoreGuiInset = true
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Enabled = false
-    
-    local mira = Instance.new("ImageLabel")
-    mira.Parent = gui
-    mira.BackgroundTransparency = 1
-    mira.Size = UDim2.new(0, 23, 0, 23)
-    mira.Position = UDim2.new(0.5, -11, 0.5, -12)
-    mira.Image = "rbxassetid://17404114716"
-    
-    MiraUI = gui
-end
-
-local function LockCamTask()
-    if Settings.LockCamEnabled and Settings.LockUIActive then
-        local character = GetChar()
-        if character and GetHRP(character) then
-            local rootPart = GetHRP(character)
-            local humanoid = GetHumanoid(character)
-            if humanoid then
-                humanoid.CameraOffset = Vector3.new(1.5, 0, 0)
-            end
-            local cameraDirection = camera.CFrame.LookVector
-            cameraDirection = Vector3.new(cameraDirection.X, 0, cameraDirection.Z).Unit
-            if cameraDirection.Magnitude > 0 then
-                rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + cameraDirection)
-            end
-        end
-    else
-        local char = GetChar()
-        if char then
-            local humanoid = GetHumanoid(char)
-            if humanoid then
-                humanoid.CameraOffset = Vector3.new(0, 0, 0)
-            end
-        end
-    end
-end
-
--- ============================================
--- AUTOFARM
--- ============================================
-
-local function atualizarCacheMoedas()
-    if tick() - Settings.lastCoinCacheUpdate < 2 then return end
-    Settings.lastCoinCacheUpdate = tick()
-    coinCache = {}
-    
-    local coinFolder = workspace:FindFirstChild("Coins") or workspace:FindFirstChild("Drops") or workspace:FindFirstChild("Money")
-    if coinFolder then
-        for _, obj in pairs(coinFolder:GetChildren()) do
-            if obj:IsA("BasePart") and obj.Transparency < 0.8 then
-                local nome = obj.Name:lower()
-                if nome:find("coin") or nome:find("gold") or nome:find("money") then
-                    table.insert(coinCache, obj)
-                end
-            end
-        end
-    else
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Transparency < 0.8 then
-                local nome = obj.Name:lower()
-                if nome:find("coin") or nome:find("gold") or nome:find("money") then
-                    table.insert(coinCache, obj)
-                end
-            end
-        end
-    end
-end
-
-workspace.DescendantAdded:Connect(function() coinCache = {} end)
-workspace.DescendantRemoving:Connect(function() coinCache = {} end)
-
-local function pararAutoFarmMovimento()
-    if AutoFarmTween and AutoFarmTween.PlaybackState == Enum.PlaybackState.Playing then
-        AutoFarmTween:Cancel()
-    end
-    Settings.AutoFarmMoving = false
-    AutoFarmTween = nil
-    
-    if Settings.AutoFarmAtivouNoClip then
-        local char = GetChar()
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
-        Settings.AutoFarmAtivouNoClip = false
-    end
-end
-
-local function moverParaMoeda(moeda)
-    local char = GetChar()
-    if not char then return false end
-    local hrp = GetHRP(char)
-    if not hrp then return false end
-    
-    if not Settings.NoClipEnabled then
-        local char = GetChar()
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end
-        Settings.AutoFarmAtivouNoClip = true
-    end
-    
-    local targetPos = moeda.Position + Vector3.new(0, 2, 0)
-    local distancia = (targetPos - hrp.Position).Magnitude
-    local duracao = math.max(distancia / 45, 0.2)
-    
-    AutoFarmTween = TweenService:Create(hrp, TweenInfo.new(duracao, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
-    Settings.AutoFarmMoving = true
-    AutoFarmTween:Play()
-    AutoFarmTween.Completed:Connect(function()
-        task.wait(0.2)
-        Settings.AutoFarmMoving = false
-    end)
-    
-    return true
-end
-
-local function getNearestCoinNatural()
-    local myHRP = GetHRP()
-    if not myHRP then return nil end
-    
-    atualizarCacheMoedas()
-    
-    local nearestCoin = nil
-    local nearestDist = 200
-    
-    for _, obj in pairs(coinCache) do
-        if obj and obj.Parent then
-            local dist = (obj.Position - myHRP.Position).Magnitude
-            if dist < nearestDist then
-                nearestDist = dist
-                nearestCoin = obj
-            end
-        end
-    end
-    
-    return nearestCoin
-end
-
-local function AutoFarmTaskNatural()
-    if not Settings.AutoFarmEnabled then return end
-    if Settings.AutoFarmMoving then return end
-    if not player.Character then return end
-    
-    local moeda = getNearestCoinNatural()
-    if moeda then moverParaMoeda(moeda) end
-end
-
-local function AutoFarmToggle(Value)
-    Settings.AutoFarmEnabled = Value
-    if Value then
-        if NoClipToggle then NoClipToggle:Lock() end
-        LoopManager:Add("AutoFarm", AutoFarmTaskNatural, 1.2)
-        AddNotification("OZ HUB", "AutoFarm ativado", 3)
-    else
-        if NoClipToggle then NoClipToggle:Unlock() end
-        LoopManager:Remove("AutoFarm")
-        pararAutoFarmMovimento()
-        AddNotification("OZ HUB", "AutoFarm desativado", 3)
-    end
-end
-
--- ============================================
--- ONLINES FUNCTIONS
--- ============================================
-
-local function stopAll()
-    if Settings.backpackActive then
-        Settings.backpackActive = false
-        LoopManager:Remove("Backpack")
-    end
-    if Settings.headsitActive then
-        Settings.headsitActive = false
-        LoopManager:Remove("Headsit")
-    end
-    if Settings.spectateActive then
-        Settings.spectateActive = false
-        local myChar = GetChar()
-        if myChar and myChar:FindFirstChild("Humanoid") then
-            camera.CameraSubject = myChar.Humanoid
-            camera.CameraType = Enum.CameraType.Custom
-        end
-    end
-    local char = GetChar()
-    if char and char:FindFirstChild("Humanoid") then
-        char.Humanoid.Sit = false
-    end
-end
-
--- ============================================
--- ANIMAÇÕES E EMOTES
--- ============================================
-
-local ANIMATION_PACKS = {
-    Pirate = { Idle1 = "750781874", Idle2 = "750782770", Walk = "750785693", Run = "750783738", Jump = "750782230", Fall = "750780242", Climb = "750779899", Swim = "750784579", SwimIdle = "750785176" },
-    Cartoony = { Idle1 = "10921071918", Idle2 = "10921072875", Walk = "10921082452", Run = "10921076136", Jump = "10921078135", Fall = "10921077030", Climb = "10921070953", Swim = "10921079380", SwimIdle = "10921081059" },
-    Hero = { Idle1 = "92080889861410", Idle2 = "74451233229259", Walk = "110358958299415", Run = "117333533048078", Jump = "119846112151352", Fall = "129773241321032", Climb = "134630013742019", Swim = "132697394189921", SwimIdle = "79090109939093" },
-    Knight = { Idle1 = "10921117521", Idle2 = "10921118894", Walk = "10921127095", Run = "10921121197", Jump = "10921123517", Fall = "10921122579", Climb = "10921116196", Swim = "10921125160", SwimIdle = "10921125935" },
-    SuperHero = { Idle1 = "10921288909", Idle2 = "10921290167", Walk = "10921298616", Run = "10921291831", Jump = "10921294559", Fall = "10921293373", Climb = "10921286911", Swim = "10921295495", SwimIdle = "10921297391" },
-    WereWolf = { Idle1 = "10921330408", Idle2 = "10921333667", Walk = "10921342074", Run = "10921336997", Jump = "1083218792", Fall = "10921337907", Climb = "10921329322", Swim = "10921340419", SwimIdle = "10921341319" },
-    Vampire = { Idle1 = "10921315373", Idle2 = "10921316709", Walk = "10921326949", Run = "10921320299", Jump = "10921322186", Fall = "10921321317", Climb = "10921314188", Swim = "10921324408", SwimIdle = "10921325443" },
-    Astronaut = { Idle1 = "10921034824", Idle2 = "10921036806", Walk = "10921046031", Run = "10921039308", Jump = "10921042494", Fall = "10921040576", Climb = "10921032124", Swim = "10921044000", SwimIdle = "10921045006" },
-    Malvada = { Idle1 = "118832222982049", Idle2 = "76049494037641", Walk = "92072849924640", Run = "72301599441680", Jump = "104325245285198", Fall = "121152442762481", Climb = "131326830509784", Swim = "99384245425157", SwimIdle = "113199415118199" },
-    Walmart = { Idle1 = "18747067405", Idle2 = "18747063918", Walk = "18747074203", Run = "18747070484", Jump = "18747069148", Fall = "18747062535", Climb = "18747060903", Swim = "18747073181", SwimIdle = "18747071682" },
-    Dancing = { Idle1 = "92849173543269", Idle2 = "132238900951109", Walk = "73718308412641", Run = "135515454877967", Jump = "78508480717326", Fall = "78147885297412", Climb = "129447497744818", Swim = "110657013921774", SwimIdle = "129183123083281" },
-    RunwayGlamour = { Idle1 = "133806214992291", Idle2 = "94970088341563", Walk = "109168724482748", Run = "81024476153754", Jump = "116936326516985", Fall = "92294537340807", Climb = "119377220967554", Swim = "134591743181628", SwimIdle = "98854111361360" },
-    Amazon = { Idle1 = "98281136301627", Idle2 = "138183121662404", Walk = "90478085024465", Run = "134824450619865", Jump = "121454505477205", Fall = "94788218468396", Climb = "121145883950231", Swim = "105962919001086", SwimIdle = "129126268464847" },
-    Mage = { Idle1 = "10921144709", Idle2 = "10921145797", Walk = "10921152678", Run = "10921148209", Jump = "10921149743", Fall = "10921148939", Climb = "10921143404", Swim = "10921150788", SwimIdle = "10921151661" },
-    Toy = { Idle1 = "10921301576", Idle2 = "10921302207", Walk = "10921312010", Run = "10921306285", Jump = "10921308158", Fall = "10921307241", Climb = "10921300839", Swim = "10921309319", SwimIdle = "10921310341" },
-    Elder = { Idle1 = "10921101664", Idle2 = "10921102574", Walk = "10921111375", Run = "10921104374", Jump = "10921107367", Fall = "10921105765", Climb = "10921100400", Swim = "10921108971", SwimIdle = "10921110146" },
-    AdidasAura = { Idle1 = "110211186840347", Idle2 = "114191137265065", Walk = "83842218823011", Run = "118320322718866", Jump = "109996626521204", Fall = "95603166884636", Climb = "97824616490448", Swim = "134530128383903", SwimIdle = "94922130551805" },
-    Classic = { Idle1 = "10921230744", Idle2 = "10921232093", Walk = "10921244891", Run = "10921240218", Jump = "10921242013", Fall = "10921241244", Climb = "10921229866", Swim = "10921243048", SwimIdle = "10921244018" },
-    Stylish = { Idle1 = "10921272275", Idle2 = "10921273958", Walk = "10921283326", Run = "10921276116", Jump = "10921279832", Fall = "10921278648", Climb = "10921271391", Swim = "10921281000", SwimIdle = "10921281964" },
-    Sports = { Idle1 = "18537376492", Idle2 = "18537371272", Walk = "18537392113", Run = "18537384940", Jump = "18537380791", Fall = "18537367238", Climb = "18537363391", Swim = "18537389531", SwimIdle = "18537387180" },
-    AdidasCommunity = { Idle1 = "122257458498464", Idle2 = "102357151005774", Walk = "122150855457006", Run = "82598234841035", Jump = "75290611992385", Fall = "98600215928904", Climb = "88763136693023", Swim = "133308483266208", SwimIdle = "109346520324160" },
-    Robot = { Idle1 = "10921248039", Idle2 = "10921248831", Walk = "10921255446", Run = "10921250460", Jump = "10921252123", Fall = "10921251156", Climb = "10921247141", Swim = "10921253142", SwimIdle = "10921253767" },
-    Glow = { Idle1 = "137764781910579", Idle2 = "96439737641086", Walk = "85809016093530", Run = "101925097435036", Jump = "74159004634379", Fall = "98070939608691", Climb = "108236155509584", Swim = "83003487432457", SwimIdle = "112946194103503" },
-    Bold = { Idle1 = "16738333868", Idle2 = "16738334710", Walk = "16738340646", Run = "16738337225", Jump = "16738336650", Fall = "16738333171", Climb = "16738332169", Swim = "16738339158", SwimIdle = "16738339817" },
-    Levitation = { Idle1 = "10921132962", Idle2 = "10921133721", Walk = "10921140719", Run = "10921135644", Jump = "10921137402", Fall = "10921136539", Climb = "10921132092", Swim = "10921138209", SwimIdle = "10921139478" }
+    printf("[RESET] Organização %d resetada com sucesso!", orgid);
 }
 
-local EMOTES = {
-    {name = "Footwork Funk Brasileiro 2", id = "140219184038687"},
-    {name = "Sentar", id = "86052354840008"},
-    {name = "Passinho do Jamal", id = "83796130837213"},
-    {name = "Rocker Festa", id = "97500383729078"},
-    {name = "Kareen", id = "131703052643885"},
-    {name = "Popular", id = "94292758607678"},
-    {name = "Falso Morto MM2", id = "110770090804022"},
-    {name = "Cagar", id = "121561448415799"},
-    {name = "Dança Hype", id = "129200076968240"},
-    {name = "Abraçar", id = "89634365084537"},
-    {name = "Rebolada", id = "86256296565849"}
+ExcluirOrganizacao(orgid)
+{
+    // Primeiro: Remove TODOS os jogadores online que pertencem a esta org
+    for(new p = 0; p < MAX_PLAYERS; p++) {
+        if(IsPlayerConnected(p) && PlayerInfo[p][pOrgID] == orgid) {
+            new nome[MAX_PLAYER_NAME];
+            GetPlayerName(p, nome, sizeof(nome));
+            printf("[EXCLUIR] Removendo jogador online: %s (ID: %d)", nome, p);
+            
+            PlayerInfo[p][pOrgID] = -1;
+            PlayerInfo[p][pOrgCargo] = 0;
+            PlayerInfo[p][pFardado] = false;
+            SalvarConta(p);
+            SetPlayerSkin(p, PlayerInfo[p][pSkin]);
+            SendClientMessage(p, -1, "A organização foi excluída! Você foi removido.");
+        }
+    }
+    
+    // Segundo: Remove todos os membros offline dos arquivos
+    for(new i = 0; i < MAX_MEMBROS_ORG; i++) {
+        if(OrgMembros[orgid][i][MembroAtivo]) {
+            new nome_membro[MAX_PLAYER_NAME];
+            strmid(nome_membro, OrgMembros[orgid][i][MembroNome], 0, strlen(OrgMembros[orgid][i][MembroNome]), MAX_PLAYER_NAME);
+            
+            new file_path[64];
+            format(file_path, sizeof(file_path), "Contas/%s.ini", nome_membro);
+            if(DOF2_FileExists(file_path)) {
+                printf("[EXCLUIR] Removendo membro offline: %s", nome_membro);
+                DOF2_SetInt(file_path, "OrgID", -1);
+                DOF2_SetInt(file_path, "OrgCargo", 0);
+                DOF2_SetBool(file_path, "Fardado", false);
+                DOF2_SaveFile();
+            }
+        }
+    }
+    
+    // Terceiro: Destroi pickups e textlabels
+    if(OrgDados[orgid][CofreText] != Text3D:-1) DestroyDynamic3DTextLabel(OrgDados[orgid][CofreText]);
+    if(OrgDados[orgid][ObjCofre] != 0) DestroyDynamicObject(OrgDados[orgid][ObjCofre]);
+    if(OrgDados[orgid][VeicText] != Text3D:-1) DestroyDynamic3DTextLabel(OrgDados[orgid][VeicText]);
+    if(OrgDados[orgid][PickupVeiculo] != 0) DestroyDynamicPickup(OrgDados[orgid][PickupVeiculo]);
+    if(OrgDados[orgid][FardaText] != Text3D:-1) DestroyDynamic3DTextLabel(OrgDados[orgid][FardaText]);
+    if(OrgDados[orgid][PickupFarda] != 0) DestroyDynamicPickup(OrgDados[orgid][PickupFarda]);
+    if(OrgDados[orgid][ArsenalText] != Text3D:-1) DestroyDynamic3DTextLabel(OrgDados[orgid][ArsenalText]);
+    if(OrgDados[orgid][PickupArsenal] != 0) DestroyDynamicPickup(OrgDados[orgid][PickupArsenal]);
+    
+    for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+        if(OrgFrota[orgid][v][vID_Atual] != 0) DestroyVehicle(OrgFrota[orgid][v][vID_Atual]);
+    }
+    
+    // Quarto: Remove arquivos da organização
+    new path[40];
+    format(path, sizeof(path), "orgs/Org_%d.ini", orgid);
+    if(DOF2_FileExists(path)) DOF2_RemoveFile(path);
+    format(path, sizeof(path), "orgs/Membros_%d.ini", orgid);
+    if(DOF2_FileExists(path)) DOF2_RemoveFile(path);
+    
+    // Quinto: Marca como não criada
+    OrgDados[orgid][OrgCriada] = false;
+    
+    printf("[EXCLUIR] Organização %d excluída com sucesso!", orgid);
 }
 
-local function aplicarPack(pack)
-    if not pack then return end
-    local char = player.Character or player.CharacterAdded:Wait()
-    local animate = char:WaitForChild("Animate")
-    
-    local function set(folder, id)
-        if not folder then return end
-        for _, v in pairs(folder:GetChildren()) do
-            if v:IsA("Animation") then
-                v.AnimationId = "rbxassetid://" .. id
-            end
-        end
-    end
-    
-    set(animate:FindFirstChild("idle"), pack.Idle1)
-    set(animate:FindFirstChild("walk"), pack.Walk)
-    set(animate:FindFirstChild("run"), pack.Run)
-    set(animate:FindFirstChild("jump"), pack.Jump)
-    set(animate:FindFirstChild("fall"), pack.Fall)
-    set(animate:FindFirstChild("climb"), pack.Climb)
-    set(animate:FindFirstChild("swim"), pack.Swim)
-    
-    char:WaitForChild("Humanoid"):ChangeState(Enum.HumanoidStateType.Running)
-end
+main(){}
 
-local function playEmote(id, speed)
-    local char = player.Character or player.CharacterAdded:Wait()
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid then return end
+public OnGameModeInit()
+{
+    SetGameModeText("Projeto RP");
+    ShowNameTags(0);
+    ShowPlayerMarkers(0);
+    AllowInteriorWeapons(1);
+    ManualVehicleEngineAndLights();
+    UsePlayerPedAnims();
+    DisableInteriorEnterExits();
     
-    local animator = humanoid:FindFirstChild("Animator")
-    if not animator then
-        animator = Instance.new("Animator")
-        animator.Parent = humanoid
-    end
+    for(new i = 0; i < MAX_ORGS; i++)
+	{
+	    OrgDados[i][CofreText] = Text3D:-1;
+	    OrgDados[i][VeicText] = Text3D:-1;
+	    OrgDados[i][FardaText] = Text3D:-1;
+	    OrgDados[i][ArsenalText] = Text3D:-1;
+	}
+    CarregarOrgs();
+    return 1;
+}
+
+public OnGameModeExit()
+{
+    for(new i = 0; i < MAX_PLAYERS; i++) {
+        if(IsPlayerConnected(i)) {
+            SalvarConta(i);
+        }
+    }
+    SalvarOrgs();
+    DOF2_Exit();
+    return 1;
+}
+
+public OnPlayerRequestClass(playerid, classid)
+{
+	TogglePlayerSpectating(playerid, true);
+	InterpolateCameraPos(playerid, -1324.3650, 493.5515, 113.5469, -1324.3650, 493.5515, 113.5469, 10000);
+	InterpolateCameraLookAt(playerid, -1423.6027, 464.3260, 16.9766, -1423.6027, 464.3260, 16.9766, 10000);
     
-    if currentEmoteTrack then
-        currentEmoteTrack:Stop()
-        currentEmoteTrack = nil
-    end
-    
-    local success = pcall(function()
-        humanoid:PlayEmote(tostring(id))
-    end)
-    
-    if success then
-        return
-    end
-    
-    local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://" .. tostring(id)
-    local track = animator:LoadAnimation(anim)
-    
-    if track then
-        track.Priority = Enum.AnimationPriority.Action4
-        track.Looped = Settings.loopEmote
-        track:Play()
+    if(DOF2_FileExists(Arquivo(playerid)))
+    {
+        ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "Login", "Digite sua senha para logar-se", "Confirmar", "Cancelar");
+    } else {
+        ShowPlayerDialog(playerid, DIALOG_REGISTRO, DIALOG_STYLE_INPUT, "Registro", "Digite uma senha para se registrar", "Confirmar", "Cancelar");
+    }
+	return 1;
+}
+
+public OnPlayerConnect(playerid)
+{
+	PreloadPlayerAnimations(playerid);
+	PlayerInfo[playerid][pLogado] = false;
+    return 1;
+}
+
+public OnPlayerDisconnect(playerid, reason)
+{
+	if(PlayerInfo[playerid][pLogado] == true) {
+        SalvarConta(playerid);
+        PlayerInfo[playerid][pLogado] = false;
+    }
+    if(PlayerVeiculoID[playerid] != 0) {
+        for(new o = 0; o < MAX_ORGS; o++) {
+            if(OrgDados[o][OrgCriada]) {
+                for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+                    if(OrgFrota[o][v][vID_Atual] == PlayerVeiculoID[playerid]) {
+                        DestroyVehicle(PlayerVeiculoID[playerid]);
+                        OrgFrota[o][v][vID_Atual] = 0;
+                        OrgFrota[o][v][vSpawnado] = false;
+                        break;
+                    }
+                }
+            }
+        }
+        PlayerVeiculoID[playerid] = 0;
+    }
+    if(PlayerInfo[playerid][pOrgID] != -1) {
+        AtualizarMembroOffline(PlayerInfo[playerid][pOrgID], pName(playerid), PlayerInfo[playerid][pOrgCargo]);
+    }
+    return 1;
+}
+
+public OnPlayerSpawn(playerid)
+{
+    return 1;
+}
+
+public OnPlayerRequestSpawn(playerid)
+{
+    return 0;
+}
+
+public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
+{
+    if((newkeys & KEY_SECONDARY_ATTACK) && !(oldkeys & KEY_SECONDARY_ATTACK))
+    {
+        new org = PlayerInfo[playerid][pOrgID];
+        if(org != -1 && OrgDados[org][OrgCriada]) {
+            
+            if(OrgDados[org][OrgTipo] == ORG_TIPO_CRIMINOSA && IsPlayerInRangeOfPoint(playerid, 2.0, OrgDados[org][CofreX], OrgDados[org][CofreY], OrgDados[org][CofreZ])) {
+                if(CanAccessCofre(playerid)) {
+                    MenuOrgSelecionada[playerid] = org;
+                    ShowPlayerDialog(playerid, DIALOG_ORG_COFRE_MENU, DIALOG_STYLE_LIST, "Cofre da Organização", "1. Depositar Dinheiro\n2. Sacar Dinheiro\n3. Itens da Família", "Selecionar", "Fechar");
+                } else {
+                    SendClientMessage(playerid, -1, "O cofre está FECHADO! Apenas Líder e Sub-Líder podem acessar.");
+                }
+                return 1;
+            }
+            
+            if(OrgDados[org][OrgTipo] == ORG_TIPO_CORPORACAO && IsPlayerInRangeOfPoint(playerid, 2.0, OrgDados[org][ArsenalX], OrgDados[org][ArsenalY], OrgDados[org][ArsenalZ])) {
+                if(CanAccessArsenal(playerid)) {
+                    MenuOrgSelecionada[playerid] = org;
+                    new str[500];
+                    strcat(str, "M4 (300 materiais / 100 balas)\n");
+                    strcat(str, "MP5 (250 materiais / 100 balas)\n");
+                    strcat(str, "Dose (150 materiais / 50 balas)\n");
+                    strcat(str, "Desert Eagle (100 materiais / 100 balas)\n");
+                    strcat(str, "Taser (80 materiais / 50 balas)\n");
+                    strcat(str, "Colete (50 materiais)");
+                    ShowPlayerDialog(playerid, DIALOG_ORG_ARSENAL_ITENS, DIALOG_STYLE_LIST, "Arsenal", str, "Equipar", "Fechar");
+                } else {
+                    SendClientMessage(playerid, -1, "O arsenal está FECHADO! Apenas Líder e Sub-Líder podem acessar.");
+                }
+                return 1;
+            }
+                        
+			if(OrgDados[org][OrgTipo] == ORG_TIPO_CORPORACAO && IsPlayerInRangeOfPoint(playerid, 2.0, OrgDados[org][FardaX], OrgDados[org][FardaY], OrgDados[org][FardaZ])) {
+			    ShowPlayerDialog(playerid, DIALOG_ORG_FARDA_MENU, DIALOG_STYLE_LIST, "Farda da Organização", "1. Vestir Farda\n2. Retirar Farda", "Selecionar", "Fechar");
+			    return 1;
+			}
+
+            if(IsPlayerInRangeOfPoint(playerid, 3.0, OrgDados[org][VeicPickupX], OrgDados[org][VeicPickupY], OrgDados[org][VeicPickupZ])) {
+			    MenuOrgSelecionada[playerid] = org;
+			    new lista[800], item[100];
+			    for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+			        if(OrgFrota[org][v][vModelo] != 0) {
+			            new nomeveic[32];
+			            GetVehicleModelName(OrgFrota[org][v][vModelo], nomeveic, 32);
+			            format(item, sizeof(item), "%s (%d)\n", nomeveic, OrgFrota[org][v][vModelo]);
+			        } else {
+			            format(item, sizeof(item), "Vazio\n");
+			        }
+			        strcat(lista, item);
+			    }
+			    strcat(lista, "Guardar Veículo\n");
+			    ShowPlayerDialog(playerid, DIALOG_ORG_VEICULO, DIALOG_STYLE_LIST, "Garagem da Organização", lista, "Selecionar", "Fechar");
+			    return 1;
+			}
+		}
+	}
+    return 1;
+}
+
+public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
+{
+	if(dialogid == DIALOG_REGISTRO)
+    {
+        if(!response) return Kick(playerid);
         
-        if speed and speed ~= 1 then
-            track:AdjustSpeed(speed)
-        end
+        if(strlen(inputtext) < 4 || strlen(inputtext) < 10) {
+            ShowPlayerDialog(playerid, DIALOG_REGISTRO, DIALOG_STYLE_INPUT, "Registro", "Senha deve ter no mínimo 4 a 10 caracteres", "Confirmar", "Cancelar");
+            return 1;
+        }
+        DOF2_CreateFile(Arquivo(playerid));        
+        DOF2_SetString(Arquivo(playerid), "Senha", inputtext);        
+        DOF2_SetInt(Arquivo(playerid), "Admin", 0);
+        DOF2_SetInt(Arquivo(playerid), "Dinheiro", 1000);
+        DOF2_SetInt(Arquivo(playerid), "Skin", 8);
+        DOF2_SetFloat(Arquivo(playerid), "PosX", 1685.7456);
+        DOF2_SetFloat(Arquivo(playerid), "PosY", -13.5469);
+        DOF2_SetFloat(Arquivo(playerid), "PosZ", 27.6875);
+        DOF2_SetFloat(Arquivo(playerid), "PosR", 357.6325);
+        DOF2_SetInt(Arquivo(playerid), "Interior", 0);
+        DOF2_SetInt(Arquivo(playerid), "VirtualWorld", 0);
+        DOF2_SetFloat(Arquivo(playerid), "Vida", 100.0);
+        DOF2_SetFloat(Arquivo(playerid), "Armour", 0.0);
+        DOF2_SetInt(Arquivo(playerid), "OrgID", -1);
+        DOF2_SetInt(Arquivo(playerid), "OrgCargo", 0);
+        DOF2_SetBool(Arquivo(playerid), "Fardado", false);
+        DOF2_SaveFile();
         
-        currentEmoteTrack = track
+        ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "Login", "Digite sua senha para logar-se", "Confirmar", "Cancelar");
+        SendClientMessage(playerid, -1, "{00FF00}Conta criada com sucesso! Bem-vindo ao servidor!");
+        return 1;
+    }
+    if(dialogid == DIALOG_LOGAR)
+    {
+        if(!response) return Kick(playerid);
         
-        if not Settings.loopEmote then
-            local moveConnection
-            moveConnection = humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
-                if humanoid.MoveDirection.Magnitude > 0 then
-                    track:Stop()
-                    moveConnection:Disconnect()
-                    if currentEmoteTrack == track then
-                        currentEmoteTrack = nil
-                    end
-                end
-            end)
-        end
-    else
-        AddNotification("OZ HUB", "Emote nao encontrado", 3)
-    end
-end
-
-local function stopEmote()
-    if currentEmoteTrack then
-        currentEmoteTrack:Stop()
-        currentEmoteTrack = nil
-    end
-end
-
--- ============================================
--- UI DE JOGADORES (SÓ APARECE COM A WINDUI)
--- ============================================
-
-local PlayersUI = nil
-local searchBox = nil
-local playersContainer = nil
-local selectedPlayerForUI = nil
-local allPlayersList = {}
-local playerButtons = {}
-
-local function CreatePlayersUI()
-    if PlayersUI then PlayersUI:Destroy() end
-    
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "OzHubPlayersList"
-    screenGui.Parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
-    screenGui.ResetOnSpawn = false
-    screenGui.IgnoreGuiInset = true
-    screenGui.Enabled = false
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Parent = screenGui
-    mainFrame.Size = UDim2.new(0, 340, 0, 480)
-    mainFrame.Position = UDim2.new(0.02, 0, 0.15, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    mainFrame.BackgroundTransparency = 0.05
-    mainFrame.BorderSizePixel = 0
-    mainFrame.ClipsDescendants = true
-    
-    local mainCorner = Instance.new("UICorner", mainFrame)
-    mainCorner.CornerRadius = UDim.new(0, 12)
-    
-    local mainStroke = Instance.new("UIStroke", mainFrame)
-    mainStroke.Thickness = 1
-    mainStroke.Color = Color3.fromRGB(45, 45, 55)
-    
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Parent = mainFrame
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-    titleBar.BackgroundTransparency = 0
-    titleBar.BorderSizePixel = 0
-    
-    local titleCorner = Instance.new("UICorner", titleBar)
-    titleCorner.CornerRadius = UDim.new(0, 12)
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Parent = titleBar
-    titleLabel.Size = UDim2.new(1, -40, 1, 0)
-    titleLabel.Position = UDim2.new(0, 15, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "👥 Jogadores Online"
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextSize = 14
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local searchFrame = Instance.new("Frame")
-    searchFrame.Parent = mainFrame
-    searchFrame.Size = UDim2.new(1, -20, 0, 35)
-    searchFrame.Position = UDim2.new(0, 10, 0, 50)
-    searchFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-    searchFrame.BackgroundTransparency = 0
-    searchFrame.BorderSizePixel = 0
-    
-    local searchCorner = Instance.new("UICorner", searchFrame)
-    searchCorner.CornerRadius = UDim.new(0, 8)
-    
-    local searchIcon = Instance.new("ImageLabel")
-    searchIcon.Parent = searchFrame
-    searchIcon.Size = UDim2.new(0, 20, 0, 20)
-    searchIcon.Position = UDim2.new(0, 10, 0.5, -10)
-    searchIcon.BackgroundTransparency = 1
-    searchIcon.Image = "rbxassetid://10709441932"
-    searchIcon.ImageColor3 = Color3.fromRGB(150, 150, 150)
-    
-    searchBox = Instance.new("TextBox")
-    searchBox.Parent = searchFrame
-    searchBox.Size = UDim2.new(1, -40, 1, 0)
-    searchBox.Position = UDim2.new(0, 35, 0, 0)
-    searchBox.BackgroundTransparency = 1
-    searchBox.PlaceholderText = "🔍 Pesquisar jogador..."
-    searchBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
-    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    searchBox.TextSize = 13
-    searchBox.Font = Enum.Font.Gotham
-    searchBox.ClearTextOnFocus = false
-    
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Parent = mainFrame
-    scrollFrame.Size = UDim2.new(1, -20, 1, -100)
-    scrollFrame.Position = UDim2.new(0, 10, 0, 95)
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 4
-    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
-    playersContainer = Instance.new("UIListLayout")
-    playersContainer.Parent = scrollFrame
-    playersContainer.Padding = UDim.new(0, 8)
-    playersContainer.SortOrder = Enum.SortOrder.Name
-    
-    playersContainer:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, playersContainer.AbsoluteContentSize.Y)
-    end)
-    
-    local dragStartPos = nil
-    local dragStartMouse = nil
-    local draggingFrame = false
-    
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            draggingFrame = true
-            dragStartMouse = input.Position
-            dragStartPos = mainFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    draggingFrame = false
-                end
-            end)
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if draggingFrame and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStartMouse
-            mainFrame.Position = UDim2.new(
-                dragStartPos.X.Scale, 
-                dragStartPos.X.Offset + delta.X,
-                dragStartPos.Y.Scale, 
-                dragStartPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-    
-    PlayersUI = screenGui
-    return screenGui
-end
-
-local function CreatePlayerButton(playerObj)
-    local button = Instance.new("ImageButton")
-    button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    button.BackgroundTransparency = 0
-    button.BorderSizePixel = 0
-    button.Size = UDim2.new(1, 0, 0, 55)
-    button.AutoButtonColor = false
-    
-    local corner = Instance.new("UICorner", button)
-    corner.CornerRadius = UDim.new(0, 10)
-    
-    button.MouseEnter:Connect(function()
-        if selectedPlayerForUI ~= playerObj then
-            button.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
-        end
-    end)
-    button.MouseLeave:Connect(function()
-        if selectedPlayerForUI ~= playerObj then
-            button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-        end
-    end)
-    
-    local avatar = Instance.new("ImageLabel")
-    avatar.Parent = button
-    avatar.Size = UDim2.new(0, 40, 0, 40)
-    avatar.Position = UDim2.new(0, 8, 0.5, -20)
-    avatar.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-    avatar.BackgroundTransparency = 0
-    avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-    
-    local avatarCorner = Instance.new("UICorner", avatar)
-    avatarCorner.CornerRadius = UDim.new(1, 0)
-    
-    task.spawn(function()
-        local success, thumb = pcall(function()
-            return Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-        end)
-        if success and thumb and avatar.Parent then
-            avatar.Image = thumb
-        end
-    end)
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Parent = button
-    nameLabel.Size = UDim2.new(1, -60, 0, 20)
-    nameLabel.Position = UDim2.new(0, 55, 0, 10)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = playerObj.Name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextSize = 14
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local displayLabel = Instance.new("TextLabel")
-    displayLabel.Parent = button
-    displayLabel.Size = UDim2.new(1, -60, 0, 16)
-    displayLabel.Position = UDim2.new(0, 55, 0, 30)
-    displayLabel.BackgroundTransparency = 1
-    displayLabel.Text = playerObj.DisplayName
-    displayLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
-    displayLabel.TextSize = 11
-    displayLabel.Font = Enum.Font.Gotham
-    displayLabel.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local idLabel = Instance.new("TextLabel")
-    idLabel.Parent = button
-    idLabel.Size = UDim2.new(0, 80, 0, 14)
-    idLabel.Position = UDim2.new(1, -85, 0, 20)
-    idLabel.BackgroundTransparency = 1
-    idLabel.Text = playerObj.UserId
-    idLabel.TextColor3 = Color3.fromRGB(100, 100, 110)
-    idLabel.TextSize = 10
-    idLabel.Font = Enum.Font.Gotham
-    idLabel.TextXAlignment = Enum.TextXAlignment.Right
-    
-    button.MouseButton1Click:Connect(function()
-        selectedPlayerForUI = playerObj
+        if(strlen(inputtext) <= 0) return ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "Login", "Peencha o campo! Tente novamente", "Confirmar", "Cancelar");
         
-        for _, btn in pairs(playerButtons) do
-            if btn.button and btn.button.Parent then
-                btn.button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-            end
-        end
+        if(strcmp(inputtext, DOF2_GetString(Arquivo(playerid), "Senha")) == 0) {       
+	        CarregarConta(playerid);        
+	        SendClientMessage(playerid, -1, "{00FF00}Login realizado com sucesso! Bem-vindo de volta!");
+	    } else {
+			ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "Login", "Senha incorreta! Tente novamente", "Confirmar", "Cancelar");
+		}
+        return 1;
+    }
+    if(dialogid == DIALOG_ORG_MAIN && response)
+    {
+        switch(listitem)
+        {
+            case 0: 
+            {
+                ShowPlayerDialog(playerid, DIALOG_ORG_TIPO, DIALOG_STYLE_LIST, "Tipo de Organização", "1. Organização Criminosa\n2. Corporação", "Selecionar", "Voltar");
+            }
+            case 1: 
+            {
+                new encontrou = 0;
+                new lista[2000], item[200];
+                strcat(lista, "Nome\tLíder\tStatus\n");
+                for(new i = 0; i < MAX_ORGS; i++) {
+                    if(OrgDados[i][OrgCriada]) {
+                        encontrou = 1;
+                        if(OrgDados[i][TemDono]) {
+                            format(item, sizeof(item), "%s\t%s\tOcupada\n", OrgDados[i][OrgNome], OrgDados[i][OrgDono]);
+                        } else {
+                            format(item, sizeof(item), "%s\tNenhum\tDesocupada\n", OrgDados[i][OrgNome]);
+                        }
+                        strcat(lista, item);
+                    }
+                }
+                if(!encontrou) {
+                    SendClientMessage(playerid, -1, "Nenhuma organização criada ainda!");
+                    return 1;
+                }
+                ShowPlayerDialog(playerid, DIALOG_ORG_LISTA, DIALOG_STYLE_TABLIST_HEADERS, "Organizações Criadas", lista, "Gerenciar", "Voltar");
+                return 1;
+            }
+            case 2:
+            {
+                ShowPlayerDialog(playerid, DIALOG_ORG_SETAR_ID, DIALOG_STYLE_INPUT, "Setar Líder", "Digite o ID do Jogador conectado:", "Próximo", "Voltar");
+            }
+        }
+        return 1;
+    }
+    
+    if(dialogid == DIALOG_ORG_TIPO && response)
+    {
+        MenuCargoSelecionado[playerid] = listitem;
+        new listaCores[300], item[40];
+        for(new i = 0; i < sizeof(CoresOrg); i++) {
+            format(item, sizeof(item), "%s\n", CoresOrg[i][1]);
+            strcat(listaCores, item);
+        }
+        ShowPlayerDialog(playerid, DIALOG_ORG_ESCOLHER_COR, DIALOG_STYLE_LIST, "Escolha a Cor da Organização", listaCores, "Selecionar", "Voltar");
+        return 1;
+    }
+    
+    if(dialogid == DIALOG_ORG_ESCOLHER_COR && response)
+    {
+        new tipo = MenuCargoSelecionado[playerid];
+        new cor = listitem;
+        ShowPlayerDialog(playerid, DIALOG_ORG_CRIAR, DIALOG_STYLE_INPUT, "Criar Organização", "Digite o nome da nova Organização:", "Criar", "Voltar");
+        MenuCargoSelecionado[playerid] = tipo;
+        MenuSlotSelecionado[playerid] = cor;
+        return 1;
+    }
+    
+    if(dialogid == DIALOG_ORG_CRIAR && response)
+    {
+        if(strlen(inputtext) < 4) return SendClientMessage(playerid, -1, "Nome muito curto!");
         
-        button.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+        new slot = -1;
+        for(new i = 0; i < MAX_ORGS; i++) {
+            if(!OrgDados[i][OrgCriada]) { slot = i; break; }
+        }
+        if(slot == -1) return SendClientMessage(playerid, -1, "Limite máximo de organizações atingido!");
         
-        currentSelectedPlayer = playerObj
-        if infoParagraph then
-            updateInfoParagraph(currentSelectedPlayer)
-        end
+        new tipo = MenuCargoSelecionado[playerid];
+        new cor = MenuSlotSelecionado[playerid];
         
-        AddNotification("OZ HUB", "Selecionado: " .. playerObj.Name, 2)
-    end)
-    
-    return button
-end
-
-local function RefreshPlayersList()
-    if not playersContainer then return end
-    
-    for _, child in pairs(playersContainer:GetChildren()) do
-        if child:IsA("ImageButton") then
-            child:Destroy()
-        end
-    end
-    playerButtons = {}
-    
-    local searchText = searchBox and searchBox.Text:lower() or ""
-    local filteredList = {}
-    
-    for _, plr in pairs(allPlayersList) do
-        if plr ~= player then
-            if searchText == "" or plr.Name:lower():find(searchText) or plr.DisplayName:lower():find(searchText) then
-                table.insert(filteredList, plr)
-            end
-        end
-    end
-    
-    table.sort(filteredList, function(a, b)
-        return a.Name:lower() < b.Name:lower()
-    end)
-    
-    for _, plr in pairs(filteredList) do
-        local button = CreatePlayerButton(plr)
-        button.Parent = playersContainer
+        OrgDados[slot][OrgCriada] = true;
+        format(OrgDados[slot][OrgNome], 50, "%s", inputtext);
+        OrgDados[slot][OrgTipo] = tipo;
+        OrgDados[slot][OrgCor] = CoresOrg[cor][0];
+        format(OrgDados[slot][OrgDono], MAX_PLAYER_NAME, "Nenhum");
+        OrgDados[slot][TemDono] = false;
+        OrgDados[slot][OrgDinheiro] = 0;
+        OrgDados[slot][OrgMaterial] = MATERIAL_INICIAL;
+        OrgDados[slot][CofreStatus] = false;
+        OrgDados[slot][ArsenalStatus] = false;
+        OrgDados[slot][SkinOrg] = 0;
         
-        table.insert(playerButtons, {
-            player = plr,
-            button = button
-        })
+        SalvarOrgs();
+        SendClientMessage(playerid, -1, "Organização criada! Use /criarorg > Lista para gerenciar.");
+        return 1;
+    }
+    
+    if(dialogid == DIALOG_ORG_LISTA && response)
+    {
+        new encontrados = 0, id_real = -1;
+        for(new i = 0; i < MAX_ORGS; i++) {
+            if(OrgDados[i][OrgCriada]) {
+                if(encontrados == listitem) { id_real = i; break; }
+                encontrados++;
+            }
+        }
+        if(id_real == -1 || !OrgDados[id_real][OrgCriada]) return SendClientMessage(playerid, -1, "Organização não encontrada!");
         
-        if selectedPlayerForUI == plr then
-            button.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
-        end
-    end
-end
-
-local function UpdatePlayersCache()
-    local changed = false
-    if #allPlayersList ~= #Players:GetPlayers() - 1 then
-        changed = true
-    else
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr == player then continue end
-            local found = false
-            for _, existing in pairs(allPlayersList) do
-                if existing == plr then
-                    found = true
-                    break
-                end
-            end
-            if not found then
-                changed = true
-                break
-            end
-        end
-    end
-    
-    if changed then
-        allPlayersList = {}
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player then
-                table.insert(allPlayersList, plr)
-            end
-        end
+        MenuOrgSelecionada[playerid] = id_real;
         
-        if PlayersUI and PlayersUI.Enabled then
-            RefreshPlayersList()
-        end
-    end
-end
-
-CreatePlayersUI()
-
-Players.PlayerAdded:Connect(function(plr)
-    UpdatePlayersCache()
-end)
-
-Players.PlayerRemoving:Connect(function(plr)
-    if selectedPlayerForUI == plr then
-        selectedPlayerForUI = nil
-    end
-    if currentSelectedPlayer == plr then
-        currentSelectedPlayer = nil
-        updateInfoParagraph(player)
-    end
-    UpdatePlayersCache()
-end)
-
-searchBox.Changed:Connect(function(prop)
-    if prop == "Text" and PlayersUI and PlayersUI.Enabled then
-        RefreshPlayersList()
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(5)
-        if PlayersUI and PlayersUI.Enabled then
-            UpdatePlayersCache()
-        end
-    end
-end)
-
--- ============================================
--- BOTÃO FLUTUANTE E UI PRINCIPAL
--- ============================================
+        new str[1500], cabecalho[64];
+        format(cabecalho, sizeof(cabecalho), "Config: %s", OrgDados[id_real][OrgNome]);
+        
+        if(OrgDados[id_real][OrgTipo] == ORG_TIPO_CRIMINOSA) {
+            strcat(str, "1. Definir Posição do Cofre\n");
+            strcat(str, "3. Definir Local da Garagem\n");
+            if(OrgDados[id_real][CofreStatus] == false) strcat(str, "FECHAR Cofre\n");
+            else strcat(str, "ABRIR Cofre\n");
+            strcat(str, "7. {FF0000}Resetar Organização\n");
+            strcat(str, "8. {FF0000}Excluir Organização");
+        } else {
+            strcat(str, "1. Definir Posição do Arsenal\n");
+            strcat(str, "3. Definir Local da Garagem\n");
+            strcat(str, "4. Definir Local da Farda\n");
+            strcat(str, "5. Recarregar Material (Resetar para 100k)\n");
+            if(OrgDados[id_real][ArsenalStatus] == false) strcat(str, "FECHAR Arsenal\n");
+            else strcat(str, "ABRIR Arsenal\n");
+            strcat(str, "7. {FF0000}Resetar Corporação\n");
+            strcat(str, "8. {FF0000}Excluir Corporação");
+        }
+        
+        ShowPlayerDialog(playerid, DIALOG_ORG_GERENCIAR, DIALOG_STYLE_LIST, cabecalho, str, "Selecionar", "Voltar");
+        return 1;
+    }
     
-local Window = WindUI:CreateWindow({
-    Title = "OZ HUB",
-    Icon = "rbxassetid://7041931594",
-    Folder = "OzHub",
-    Size = UDim2.fromOffset(580, 460),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = false,
-    SideBarWidth = 200,
-    HideSearchBar = true,
-    ScrollBarEnabled = false
-})
-
-Window:EditOpenButton({ Enabled = false })
-
-local floatingGui = Instance.new("ScreenGui")
-floatingGui.Name = "OzHubFloatingButton"
-floatingGui.IgnoreGuiInset = true
-floatingGui.ResetOnSpawn = false
-floatingGui.Parent = game.CoreGui
-
-local floatingButton = Instance.new("ImageButton")
-floatingButton.Size = UDim2.new(0, 45, 0, 45)
-floatingButton.Position = UDim2.new(0, 70, 0, 70)
-floatingButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-floatingButton.Image = "rbxassetid://15771263443"
-floatingButton.Name = "OzHubToggle"
-floatingButton.AutoButtonColor = true
-floatingButton.Parent = floatingGui
-
-local floatingCorner = Instance.new("UICorner", floatingButton)
-floatingCorner.CornerRadius = UDim.new(0, 10)
-
-local dragging = false
-local dragInput = nil
-local dragStart = nil
-local startPos = nil
-
-floatingButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = floatingButton.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-floatingButton.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        floatingButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- Controlar a UI de jogadores junto com a WindUI
-floatingButton.MouseButton1Click:Connect(function()
-    if Window.Visible then
-        Window:Close()
-        if PlayersUI then PlayersUI.Enabled = false end
-    else
-        Window:Open()
-        if PlayersUI then
-            UpdatePlayersCache()
-            RefreshPlayersList()
-            PlayersUI.Enabled = true
-        end
-    end
-end)
-
--- ========== ESP TAB ==========
-local ESPTab = Window:Tab({Title = "ESP", Icon = "eye"})
-
-ESPToggle = ESPTab:Toggle({
-    Title = "Enabled ESP",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPEnabled = Value
-        if Value then
-            if ESPMM2Toggle then ESPMM2Toggle:Lock() end
-            startESP()
-            AddNotification("OZ HUB", "ESP ativado", 3)
-        else
-            if ESPMM2Toggle then ESPMM2Toggle:Unlock() end
-            stopESP()
-            AddNotification("OZ HUB", "ESP desativado", 3)
-        end
-    end
-})
-
-ESPTab:Toggle({
-    Title = "Highlight Outline",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPHighlight = Value
-    end
-})
-
-ESPTab:Toggle({
-    Title = "Rainbow Outline",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPRainbow = Value
-    end
-})
-
-ESPTab:Toggle({
-    Title = "Skeleton",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPSkeleton = Value
-    end
-})
-
-ESPTab:Toggle({
-    Title = "Teleport Icon",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPTeleportIcon = Value
-    end
-})
-
-ESPTab:Toggle({
-    Title = "Name Label",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPName = Value
-    end
-})
-
-ESPTab:Toggle({
-    Title = "Distance",
-    Default = false,
-    Callback = function(Value)
-        Settings.ESPDistance = Value
-    end
-})
-
--- ========== EXPLOIT TAB ==========
-local ExploitTab = Window:Tab({Title = "Exploit", Icon = "box"})
-
-ExploitTab:Section({Title = "Movement & Tools"})
-
-ExploitTab:Toggle({
-    Title = "Fly",
-    Default = false,
-    Callback = function(Value)
-        toggleFly(Value)
-        if Value then
-            AddNotification("OZ HUB", "Fly ativado", 3)
-        else
-            AddNotification("OZ HUB", "Fly desativado", 3)
-        end
-    end
-})
-
-ExploitTab:Slider({
-    Title = "Fly Speed",
-    Step = 1,
-    Value = {Min = 10, Max = 300, Default = 50},
-    Callback = function(Value)
-        Settings.FlySpeed = Value
-    end
-})
-
-ExploitTab:Toggle({
-    Title = "Speed",
-    Default = false,
-    Callback = function(Value)
-        Settings.SpeedToggleEnabled = Value
-        if Value then
-            aplicarSpeed()
-            AddNotification("OZ HUB", "Speed ativado", 3)
-        else
-            reverterSpeed()
-            AddNotification("OZ HUB", "Speed desativado", 3)
-        end
-    end
-})
-
-ExploitTab:Slider({
-    Title = "Speed Walk",
-    Step = 1,
-    Value = {Min = 16, Max = 150, Default = 16},
-    Callback = function(Value)
-        Settings.SpeedValue = Value
-        if Settings.SpeedToggleEnabled then
-            aplicarSpeed()
-        end
-    end
-})
-
-ExploitTab:Toggle({
-    Title = "FOV Cam",
-    Default = false,
-    Callback = function(Value)
-        Settings.FOVCamToggleEnabled = Value
-        if Value then
-            aplicarFov()
-            AddNotification("OZ HUB", "FOV Cam ativado", 3)
-        else
-            reverterFov()
-            AddNotification("OZ HUB", "FOV Cam desativado", 3)
-        end
-    end
-})
-
-ExploitTab:Slider({
-    Title = "FOV Cam (Zoom)",
-    Step = 1,
-    Value = {Min = 1, Max = 120, Default = 70},
-    Callback = function(Value)
-        Settings.FovCamValue = Value
-        if Settings.FOVCamToggleEnabled then
-            aplicarFov()
-        end
-    end
-})
-
-ExploitTab:Toggle({
-    Title = "Infinite Jump",
-    Default = false,
-    Callback = function(Value)
-        Settings.infJumpEnabled = Value
-        if Value then
-            AddNotification("OZ HUB", "Infinite Jump ativado", 3)
-        else
-            AddNotification("OZ HUB", "Infinite Jump desativado", 3)
-        end
-    end
-})
-
-NoClipToggle = ExploitTab:Toggle({
-    Title = "NoClip",
-    Default = false,
-    Callback = function(Value)
-        if Settings.AutoFarmEnabled then
-            NoClipToggle:Set(Settings.NoClipEnabled)
-            return
-        end
-        Settings.NoClipEnabled = Value
-        if Value then
-            aplicarNoClip()
-            if AutoFarmToggleElement then
-                AutoFarmToggleElement:Lock()
-            end
-            AddNotification("OZ HUB", "NoClip ativado", 3)
-        else
-            reverterNoClip()
-            if AutoFarmToggleElement then
-                AutoFarmToggleElement:Unlock()
-            end
-            AddNotification("OZ HUB", "NoClip desativado", 3)
-        end
-    end
-})
-
-ExploitTab:Section({Title = "Tools & Utilities"})
-
-ExploitTab:Toggle({
-    Title = "Spinbot",
-    Default = false,
-    Callback = function(Value)
-        toggleSpinbot(Value)
-        if Value then
-            AddNotification("OZ HUB", "Spinbot ativado", 3)
-        else
-            AddNotification("OZ HUB", "Spinbot desativado", 3)
-        end
-    end
-})
-
-ExploitTab:Toggle({
-    Title = "Lock Cam",
-    Default = false,
-    Callback = function(Value)
-        Settings.LockCamEnabled = Value
-        if Value then
-            CreateShiftLockButton()
-            CriarMira()
-            LoopManager:Add("LockCam", LockCamTask, 0)
-            AddNotification("OZ HUB", "Lock Cam ativado", 3)
-        else
-            if LockUI then
-                LockUI:Destroy()
-                LockUI = nil
-            end
-            if MiraUI then
-                MiraUI:Destroy()
-                MiraUI = nil
-            end
-            LoopManager:Remove("LockCam")
-            local char = GetChar()
-            if char then
-                local humanoid = GetHumanoid(char)
-                if humanoid then
-                    humanoid.CameraOffset = Vector3.new(0, 0, 0)
-                end
-            end
-            AddNotification("OZ HUB", "Lock Cam desativado", 3)
-        end
-    end
-})
-
-ExploitTab:Button({
-    Title = "Click TP",
-    Callback = function()
-        if not player.Character then return end
-        local tool = Instance.new("Tool")
-        tool.Name = "TP Tool"
-        tool.RequiresHandle = false
-        tool.CanBeDropped = false
-        tool.TextureId = "rbxassetid://13060727541"
-        tool.Activated:Connect(function()
-            local mouse = player:GetMouse()
-            local hit = mouse.Hit
-            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local rayOrigin = hit.Position + Vector3.new(0, 5, 0)
-                local rayDirection = Vector3.new(0, -10, 0)
-                local raycastParams = RaycastParams.new()
-                raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-                raycastParams.FilterDescendantsInstances = {player.Character}
-                local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                if rayResult and rayResult.Instance and rayResult.Instance.CanCollide then
-                    player.Character.HumanoidRootPart.CFrame = CFrame.new(rayResult.Position + Vector3.new(0, 3, 0))
-                elseif hit.Position.Y > 3 and hit.Position.Y < 1000 then
-                    player.Character.HumanoidRootPart.CFrame = CFrame.new(hit.Position + Vector3.new(0, 3, 0))
-                end
-            end
-        end)
-        tool.Parent = player.Backpack
-        AddNotification("OZ HUB", "Click TP adicionado ao inventario", 3)
-    end
-})
-
-ExploitTab:Button({
-    Title = "Reiniciar",
-    Callback = function()
-        local char = GetChar()
-        if not char then
-            AddNotification("OZ HUB", "Personagem nao encontrado", 3)
-            return
-        end
-        local hrp = GetHRP(char)
-        if not hrp then
-            AddNotification("OZ HUB", "HumanoidRootPart nao encontrado", 3)
-            return
-        end
-        local posicaoAtual = hrp.CFrame
-        local humanoid = GetHumanoid(char)
-        if humanoid then
-            humanoid.Health = 0
-        end
-        local newChar = player.CharacterAdded:Wait()
-        local newHRP = GetHRP(newChar)
-        if newHRP then
-            newHRP.CFrame = posicaoAtual
-        end
-        AddNotification("OZ HUB", "Personagem reiniciado", 3)
-    end
-})
-
--- ========== ONLINES TAB (SÓ AÇÕES) ==========
-local OnlinesTab = Window:Tab({Title = "Onlines", Icon = "users"})
-
-local infoSection = OnlinesTab:Section({ Title = "Informações do Jogador", Opened = true })
-local infoParagraph = nil
-
-local thumbnailCache = {}
-
-local function getHeadshot(plr)
-    return Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-end
-
-local function getCachedHeadshot(plr)
-    if thumbnailCache[plr] then
-        return thumbnailCache[plr]
-    end
-    local success, thumb = pcall(function()
-        return getHeadshot(plr)
-    end)
-    if success then
-        thumbnailCache[plr] = thumb
-        return thumb
-    end
-    return nil
-end
-
-local function updateInfoParagraph(plr)
-    if infoParagraph then
-        infoParagraph:Destroy()
-        infoParagraph = nil
-    end
-    if not plr then return end
-    infoParagraph = infoSection:Paragraph({
-        Title = plr.DisplayName .. " (" .. plr.Name .. ")",
-        Desc = "ID: " .. plr.UserId,
-        Image = getCachedHeadshot(plr),
-        ImageSize = 50,
-    })
-end
-
-updateInfoParagraph(player)
-
-OnlinesTab:Section({ Title = "Ações com o jogador selecionado" })
-
-OnlinesTab:Button({
-    Title = "📋 Copy ID",
-    Callback = function()
-        if not selectedPlayerForUI then
-            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
-            return
-        end
-        if setclipboard then
-            setclipboard(tostring(selectedPlayerForUI.UserId))
-            AddNotification("OZ HUB", "ID copiado: " .. selectedPlayerForUI.UserId, 3)
-        end
-    end
-})
-
-OnlinesTab:Button({
-    Title = "👁️ Spectate",
-    Callback = function()
-        if not selectedPlayerForUI then
-            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
-            return
-        end
-        stopAll()
-        local char = selectedPlayerForUI.Character
-        if char and char:FindFirstChild("Humanoid") then
-            camera.CameraSubject = char.Humanoid
-            camera.CameraType = Enum.CameraType.Custom
-            Settings.spectateActive = true
-            AddNotification("OZ HUB", "Spectate em: " .. selectedPlayerForUI.Name, 3)
-        else
-            AddNotification("OZ HUB", "Jogador sem personagem", 3)
-        end
-    end
-})
-
-OnlinesTab:Button({
-    Title = "✨ Teleport",
-    Callback = function()
-        if not selectedPlayerForUI then
-            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
-            return
-        end
-        stopAll()
-        local targetChar = selectedPlayerForUI.Character
-        local myChar = GetChar()
-        if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and myChar and myChar:FindFirstChild("HumanoidRootPart") then
-            myChar.HumanoidRootPart.CFrame = targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-            AddNotification("OZ HUB", "Teleportado para: " .. selectedPlayerForUI.Name, 3)
-        else
-            AddNotification("OZ HUB", "Jogador sem personagem", 3)
-        end
-    end
-})
-
-OnlinesTab:Button({
-    Title = "🎒 Mochila",
-    Callback = function()
-        if not selectedPlayerForUI then
-            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
-            return
-        end
-        if Settings.backpackActive then
-            stopAll()
-            AddNotification("OZ HUB", "Mochila desativado", 3)
-            return
-        end
-        stopAll()
-        Settings.backpackActive = true
-        local targetPlayer = selectedPlayerForUI
-        LoopManager:Add("Backpack", function()
-            if not Settings.backpackActive or not targetPlayer or not targetPlayer.Character then
-                LoopManager:Remove("Backpack")
-                return
-            end
-            local myChar = GetChar()
-            if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if targetRoot then
-                    myChar.HumanoidRootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 1.4) * CFrame.Angles(0, math.rad(180), 0)
-                    if myChar.Humanoid and myChar.Humanoid:GetState() ~= Enum.HumanoidStateType.Seated then
-                        myChar.Humanoid.Sit = true
-                    end
-                end
-            end
-        end, 0)
-        AddNotification("OZ HUB", "Mochila ativado em: " .. selectedPlayerForUI.Name, 3)
-    end
-})
-
-OnlinesTab:Button({
-    Title = "🪑 Headsit",
-    Callback = function()
-        if not selectedPlayerForUI then
-            AddNotification("OZ HUB", "Selecione um jogador na lista", 3)
-            return
-        end
-        if Settings.headsitActive then
-            stopAll()
-            AddNotification("OZ HUB", "Headsit desativado", 3)
-            return
-        end
-        stopAll()
-        Settings.headsitActive = true
-        local targetPlayer = selectedPlayerForUI
-        LoopManager:Add("Headsit", function()
-            if not Settings.headsitActive or not targetPlayer or not targetPlayer.Character then
-                LoopManager:Remove("Headsit")
-                return
-            end
-            local myChar = GetChar()
-            if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                local targetHead = targetPlayer.Character:FindFirstChild("Head")
-                local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if targetHead and targetRoot then
-                    local headPos = targetHead.Position + Vector3.new(0, 2.5, 0)
-                    local lookDirection = targetRoot.CFrame.LookVector
-                    lookDirection = Vector3.new(lookDirection.X, 0, lookDirection.Z).Unit
-                    myChar.HumanoidRootPart.CFrame = CFrame.lookAt(headPos, headPos + lookDirection)
-                    if myChar.Humanoid and myChar.Humanoid:GetState() ~= Enum.HumanoidStateType.Seated then
-                        myChar.Humanoid.Sit = true
-                    end
-                end
-            end
-        end, 0)
-        AddNotification("OZ HUB", "Headsit ativado em: " .. selectedPlayerForUI.Name, 3)
-    end
-})
-
-OnlinesTab:Button({
-    Title = "⏹️ Stop All",
-    Callback = function()
-        if not (Settings.backpackActive or Settings.headsitActive or Settings.spectateActive) then
-            AddNotification("OZ HUB", "Nenhuma acao ativa", 3)
-            return
-        end
-        stopAll()
-        AddNotification("OZ HUB", "Todas as acoes paradas", 3)
-    end
-})
-
--- ========== MM2 TAB ==========
-local function encontrarPorPapel(papelAlvo)
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and getPapel(plr) == papelAlvo then
-            return plr
-        end
-    end
-    return nil
-end
-
-local isMM2 = (game.PlaceId == 142823291)
-
-if isMM2 then
-    local MM2Tab = Window:Tab({Title = "Murder Mystery 2", Icon = "axe"})
+    if(dialogid == DIALOG_ORG_GERENCIAR && response)
+	{
+	    new org = MenuOrgSelecionada[playerid];
+	    new Float:x, Float:y, Float:z;
+	    GetPlayerPos(playerid, x, y, z);
+	    
+	    if(OrgDados[org][OrgTipo] == ORG_TIPO_CRIMINOSA) {
+	        switch(listitem) {
+	            case 0: // Cofre
+	            {
+	                OrgDados[org][CofreX] = x; OrgDados[org][CofreY] = y; OrgDados[org][CofreZ] = z;
+	                if(OrgDados[org][ObjCofre] != 0) DestroyDynamicObject(OrgDados[org][ObjCofre]);
+	                OrgDados[org][ObjCofre] = CreateDynamicObject(2332, x, y, z, 0, 0, 0);
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, "Posicao do cofre definida!");
+	            }
+	            case 1: // Veículos
+	            {
+	                new lista[400], item[100];
+	                strcat(lista, "Slot\t\tVeiculo\n");
+	                for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+	                    if(OrgFrota[org][v][vModelo] == 0) {
+	                        format(item, sizeof(item), "Slot %d\t\t{FF0000}Nao Configurado\n", v+1);
+	                    } else {
+	                        new nomeveic[32];
+	                        GetVehicleModelName(OrgFrota[org][v][vModelo], nomeveic, 32);
+	                        format(item, sizeof(item), "Slot %d\t\t{00FF00}%s\n", v+1, nomeveic);
+	                    }
+	                    strcat(lista, item);
+	                }
+	                ShowPlayerDialog(playerid, DIALOG_ORG_SELECIONAR_SLOT, DIALOG_STYLE_TABLIST_HEADERS, "Frota da Organizacao", lista, "Selecionar", "Voltar");
+	                MenuOrgSelecionada[playerid] = org;
+	                return 1;
+	            }
+	            case 2: // Garagem
+	            {
+	                OrgDados[org][VeicPickupX] = x; OrgDados[org][VeicPickupY] = y; OrgDados[org][VeicPickupZ] = z;
+	                if(OrgDados[org][PickupVeiculo] != 0) DestroyDynamicPickup(OrgDados[org][PickupVeiculo]);
+	                OrgDados[org][PickupVeiculo] = CreateDynamicPickup(19134, 1, x, y, z, -1);
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, "Local da garagem definido!");
+	            }
+	            case 5: // Abrir/Fechar Cofre
+	            {
+	                if(OrgDados[org][CofreStatus] == false) OrgDados[org][CofreStatus] = true;
+	                else OrgDados[org][CofreStatus] = false;
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, OrgDados[org][CofreStatus] == false ? "Cofre ABERTO!" : "Cofre FECHADO!");
+	            }
+	            case 6: // Resetar
+				{
+				    if(!OrgDados[org][TemDono]) {
+				        SendClientMessage(playerid, -1, "Esta organizacao ja nao tem lider! Nao ha o que resetar.");
+				        return 1;
+				    }
+				    ShowPlayerDialog(playerid, DIALOG_ORG_CONFIRMAR_RESET, DIALOG_STYLE_MSGBOX, "Resetar Organizacao", 
+				        "ATENCAO! Isso ira:\n- Remover TODOS os membros\n- Demitir o lider atual\n- ZERAR o dinheiro do cofre\n- A organizacao ficara sem dono\n\nDeseja continuar?", "Sim", "Nao");
+				    MenuOrgSelecionada[playerid] = org;
+				}
+				case 7: // Excluir
+				{
+				    ShowPlayerDialog(playerid, DIALOG_ORG_CONFIRMAR_EXCLUIR, DIALOG_STYLE_MSGBOX, "Excluir Organizacao", 
+				        "ATENCAO! Isso ira DELETAR PERMANENTEMENTE a organizacao e todos os dados!\n\nDeseja continuar?", "Sim", "Nao");
+				    MenuOrgSelecionada[playerid] = org;
+				}
+	        }
+	    } else {
+	        switch(listitem) {
+	            case 0: // Arsenal
+	            {
+	                OrgDados[org][ArsenalX] = x; OrgDados[org][ArsenalY] = y; OrgDados[org][ArsenalZ] = z;
+	                if(OrgDados[org][PickupArsenal] != 0) DestroyDynamicPickup(OrgDados[org][PickupArsenal]);
+	                OrgDados[org][PickupArsenal] = CreateDynamicPickup(2061, 1, x, y, z, -1);
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, "Posicao do arsenal definida!");
+	            }
+	            case 1: // Veículos (Corporação)
+	            {
+	                new lista[400], item[100];
+	                strcat(lista, "Slot\t\tVeiculo\n");
+	                for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+	                    if(OrgFrota[org][v][vModelo] == 0) {
+	                        format(item, sizeof(item), "Slot %d\t\t{FF0000}Nao Configurado\n", v+1);
+	                    } else {
+	                        new nomeveic[32];
+	                        GetVehicleModelName(OrgFrota[org][v][vModelo], nomeveic, 32);
+	                        format(item, sizeof(item), "Slot %d\t\t{00FF00}%s\n", v+1, nomeveic);
+	                    }
+	                    strcat(lista, item);
+	                }
+	                ShowPlayerDialog(playerid, DIALOG_ORG_SELECIONAR_SLOT, DIALOG_STYLE_TABLIST_HEADERS, "Frota da Organizacao", lista, "Selecionar", "Voltar");
+	                MenuOrgSelecionada[playerid] = org;
+	                return 1;
+	            }
+	            case 2: // Garagem
+	            {
+	                OrgDados[org][VeicPickupX] = x; OrgDados[org][VeicPickupY] = y; OrgDados[org][VeicPickupZ] = z;
+	                if(OrgDados[org][PickupVeiculo] != 0) DestroyDynamicPickup(OrgDados[org][PickupVeiculo]);
+	                OrgDados[org][PickupVeiculo] = CreateDynamicPickup(19134, 1, x, y, z, -1);
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, "Local da garagem definido!");
+	            }
+	            case 3: // Farda
+	            {
+	                OrgDados[org][FardaX] = x; OrgDados[org][FardaY] = y; OrgDados[org][FardaZ] = z;
+	                if(OrgDados[org][PickupFarda] != 0) DestroyDynamicPickup(OrgDados[org][PickupFarda]);
+	                OrgDados[org][PickupFarda] = CreateDynamicPickup(1275, 1, x, y, z, -1);
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, "Local da farda definido!");
+	            }
+	            case 4: // Recarregar Material
+	            {
+	                OrgDados[org][OrgMaterial] = MATERIAL_INICIAL;
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, "Material recarregado! Estoque voltou para 100.000.");
+	            }
+	            case 5: // Abrir/Fechar Arsenal
+	            {
+	                if(OrgDados[org][ArsenalStatus] == false) OrgDados[org][ArsenalStatus] = true;
+	                else OrgDados[org][ArsenalStatus] = false;
+	                AtualizarTextLabelsOrg(org);
+	                SalvarOrgs();
+	                SendClientMessage(playerid, -1, OrgDados[org][ArsenalStatus] == false ? "Arsenal ABERTO!" : "Arsenal FECHADO!");
+	            }
+	            case 6: // Resetar Corporação
+				{
+				    if(!OrgDados[org][TemDono]) {
+				        SendClientMessage(playerid, -1, "Esta corporacao ja nao tem lider! Nao ha o que resetar.");
+				        return 1;
+				    }
+				    ShowPlayerDialog(playerid, DIALOG_ORG_CONFIRMAR_RESET, DIALOG_STYLE_MSGBOX, "Resetar Corporacao", 
+				        "ATENCAO! Isso ira:\n- Remover TODOS os membros\n- Demitir o lider atual\n- A corporacao ficara sem dono\n\nDeseja continuar?", "Sim", "Nao");
+				    MenuOrgSelecionada[playerid] = org;
+				}
+				case 7: // Excluir Corporação
+				{
+				    ShowPlayerDialog(playerid, DIALOG_ORG_CONFIRMAR_EXCLUIR, DIALOG_STYLE_MSGBOX, "Excluir Corporacao", 
+				        "ATENCAO! Isso ira DELETAR PERMANENTEMENTE a corporacao e todos os dados!\n\nDeseja continuar?", "Sim", "Nao");
+				    MenuOrgSelecionada[playerid] = org;
+				}
+	        }
+	    }
+	    return 1;
+    }
     
-    MM2Tab:Section({Title = "ESP"})
+    if(dialogid == DIALOG_ORG_SELECIONAR_SLOT && response)
+	{
+	    MenuSlotSelecionado[playerid] = listitem;
+	    
+	    new str[200];
+	    format(str, sizeof(str), "Digite o ID do Modelo do veiculo para o Slot %d\n(Ex: 411 para Infernus):", listitem+1);
+	    
+	    ShowPlayerDialog(playerid, DIALOG_ORG_FROTA_MOD, DIALOG_STYLE_INPUT, "Configurar Veiculo", str, "Salvar", "Voltar");
+	    return 1;
+	}
+
+    if(dialogid == DIALOG_ORG_SKIN && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new skin = strval(inputtext);
+        OrgDados[org][SkinOrg] = skin;
+        AtualizarSkinMembros(org);
+        SalvarOrgs();
+        SendClientMessage(playerid, -1, skin > 0 ? "Skin da organização configurada!" : "Skin removida! Membros usarão skin padrão.");
+        return 1;
+    }
     
-    ESPMM2Toggle = MM2Tab:Toggle({
-        Title = "ESP MM2",
-        Default = false,
-        Callback = function(Value)
-            Settings.ESPMM2Enabled = Value
-            if Value then
-                if ESPToggle then ESPToggle:Lock() end
-                if Settings.ESPEnabled then
-                    ESPToggle:Set(false)
-                end
-                iniciarESPMM2()
-                AddNotification("OZ HUB", "ESP MM2 ativado", 3)
-            else
-                if ESPToggle then ESPToggle:Unlock() end
-                pararESPMM2()
-                AddNotification("OZ HUB", "ESP MM2 desativado", 3)
-            end
-        end
-    })
+    if(dialogid == DIALOG_ORG_CONFIRMAR_RESET && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        ResetarOrganizacao(org);
+        SendClientMessage(playerid, -1, "Organização resetada com sucesso!");
+        return 1;
+    }
     
-    MM2Tab:Section({Title = "Combat"})
+    if(dialogid == DIALOG_ORG_CONFIRMAR_EXCLUIR && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        ExcluirOrganizacao(org);
+        SendClientMessage(playerid, -1, "Organização excluída permanentemente!");
+        return 1;
+    }
     
-    MM2Tab:Button({
-        Title = "Puxar Xerife",
-        Callback = function()
-            local xerife = encontrarPorPapel("Xerife")
-            if xerife and xerife.Character then
-                local targetHRP = GetHRP(xerife.Character)
-                local myHRP = GetHRP()
-                if targetHRP and myHRP then
-                    targetHRP.CFrame = myHRP.CFrame
-                    AddNotification("OZ HUB", "Xerife puxado", 3)
-                end
-            else
-                AddNotification("OZ HUB", "Xerife nao encontrado", 3)
-            end
-        end
-    })
+    if(dialogid == DIALOG_ORG_FROTA_MENU && response)
+    {
+        MenuSlotSelecionado[playerid] = listitem;
+        ShowPlayerDialog(playerid, DIALOG_ORG_FROTA_MOD, DIALOG_STYLE_INPUT, "Configurar Veículo", "Digite o ID do Modelo do veículo (Ex: 411 para Infernus):", "Salvar", "Voltar");
+        return 1;
+    }
     
-    MM2Tab:Button({
-        Title = "Puxar Todos",
-        Callback = function()
-            local myHRP = GetHRP()
-            if not myHRP then return end
-            local myPos = myHRP.Position
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= player and plr.Character then
-                    local targetHRP = GetHRP(plr.Character)
-                    if targetHRP then
-                        local distancia = (targetHRP.Position - myPos).Magnitude
-                        if distancia <= 250 then
-                            targetHRP.CFrame = myHRP.CFrame
-                            task.wait(0.1)
-                        end
-                    end
-                end
-            end
-            AddNotification("OZ HUB", "Todos puxados", 3)
-        end
-    })
+	if(dialogid == DIALOG_ORG_FROTA_MOD && response)
+	{
+	    new modelo = strval(inputtext);
+	    if(modelo < 400 || modelo > 611) return SendClientMessage(playerid, -1, "Modelo inválido de veículo!");
+	    
+	    new org = MenuOrgSelecionada[playerid];
+	    new slot = MenuSlotSelecionado[playerid];
+	    new Float:x, Float:y, Float:z, Float:a;
+	    GetPlayerPos(playerid, x, y, z);
+	    GetPlayerFacingAngle(playerid, a);
+	    
+	    OrgFrota[org][slot][vModelo] = modelo;
+	    OrgFrota[org][slot][vX] = x + (2.0 * floatsin(-a, degrees));
+	    OrgFrota[org][slot][vY] = y + (2.0 * floatcos(-a, degrees));
+	    OrgFrota[org][slot][vZ] = z;
+	    OrgFrota[org][slot][vA] = a;
+	    OrgFrota[org][slot][vSpawnado] = false;
+	    GetVehicleModelName(modelo, OrgFrota[org][slot][NomeModelo], 32);
+	    
+	    if(OrgFrota[org][slot][vID_Atual] != 0) DestroyVehicle(OrgFrota[org][slot][vID_Atual]);
+	    OrgFrota[org][slot][vID_Atual] = 0;
+	    
+	    SalvarOrgs();
+	    SendClientMessage(playerid, -1, "Veículo configurado! Use o pickup da garagem para spawnar.");
+	    return 1;
+	}
     
-    MM2Tab:Section({Title = "Utilidades"})
+    if(dialogid == DIALOG_ORG_VEICULO && response)
+	{
+	    new org = MenuOrgSelecionada[playerid];
+	    
+	    if(PlayerVeiculoID[playerid] != 0 && listitem != 5) {
+	        SendClientMessage(playerid, -1, "Você já tem um veículo ativo! Use a opção 'Guardar Veículo' primeiro.");
+	        return 1;
+	    }
+	    
+	    if(listitem == 5) { 
+	        if(PlayerVeiculoID[playerid] == 0) {
+	            SendClientMessage(playerid, -1, "Você não tem nenhum veículo para guardar!");
+	            return 1;
+	        }
+	        
+	        for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+	            if(OrgFrota[org][v][vID_Atual] == PlayerVeiculoID[playerid]) {
+	                DestroyVehicle(PlayerVeiculoID[playerid]);
+	                OrgFrota[org][v][vID_Atual] = 0;
+	                OrgFrota[org][v][vSpawnado] = false;
+	                PlayerVeiculoID[playerid] = 0;
+	                SendClientMessage(playerid, -1, "Veículo guardado na garagem!");
+	                LogOrgAction(org, playerid, "Guardou o veículo");
+	                break;
+	            }
+	        }
+	        return 1;
+	    }
+	    
+	    if(OrgFrota[org][listitem][vModelo] == 0) return SendClientMessage(playerid, -1, "Este slot está vazio!");
+	    
+	    new veiculo = CreateVehicle(OrgFrota[org][listitem][vModelo], OrgFrota[org][listitem][vX], OrgFrota[org][listitem][vY], OrgFrota[org][listitem][vZ], OrgFrota[org][listitem][vA], -1, -1, -1);
+	    
+	    OrgFrota[org][listitem][vID_Atual] = veiculo;
+	    OrgFrota[org][listitem][vSpawnado] = true;
+	    PlayerVeiculoID[playerid] = veiculo;
+	    
+	    PutPlayerInVehicle(playerid, veiculo, 0);
+	    SendClientMessage(playerid, -1, "Veículo spawnado! Use a opção 'Guardar Veículo' antes de pegar outro.");
+	    LogOrgAction(org, playerid, "Spawnou um veículo");
+	    return 1;
+	}
     
-    AutoFarmToggleElement = MM2Tab:Toggle({
-        Title = "Auto Farm Moedas",
-        Default = false,
-        Callback = function(Value)
-            if Settings.NoClipEnabled and Value then
-                AddNotification("OZ HUB", "Desative o NoClip primeiro", 3)
-                AutoFarmToggleElement:Set(false)
-                return
-            end
-            AutoFarmToggle(Value)
-        end
-    })
-end
-
--- ========== GRAPHICS TAB ==========
-local GraphicsTab = Window:Tab({Title = "Graphics", Icon = "sparkle"})
-
-GraphicsTab:Section({Title = "Time Control"})
-
-GraphicsTab:Slider({
-    Title = "Clock Time",
-    Step = 1,
-    Value = {Min = 0, Max = 24, Default = 12},
-    Callback = function(Value)
-        Lighting.ClockTime = Value
-    end
-})
-
-GraphicsTab:Button({
-    Title = "Morning (08:00)",
-    Callback = function()
-        Lighting.ClockTime = 8
-    end
-})
-
-GraphicsTab:Button({
-    Title = "Noon (14:00)",
-    Callback = function()
-        Lighting.ClockTime = 14
-    end
-})
-
-GraphicsTab:Button({
-    Title = "Night (00:00)",
-    Callback = function()
-        Lighting.ClockTime = 0
-    end
-})
-
-GraphicsTab:Section({Title = "Performance"})
-
-GraphicsTab:Toggle({
-    Title = "Modo Performance",
-    Default = false,
-    Callback = function(Value)
-        Settings.PerformanceMode = Value
-        if Value then
-            Settings.OriginalBrightness = Lighting.Brightness
-            Settings.OriginalGlobalShadows = Lighting.GlobalShadows
-            Lighting.Brightness = 1.5
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 500
-            Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-            workspace.Terrain.WaterWaveSize = 0
-            workspace.Terrain.WaterReflectance = 0
-            workspace.Terrain.WaterTransparency = 0
-            pcall(function() setfpscap(240) end)
-            AddNotification("OZ HUB", "Modo Performance ativado", 3)
-        else
-            if Settings.OriginalBrightness then Lighting.Brightness = Settings.OriginalBrightness end
-            if Settings.OriginalGlobalShadows ~= nil then Lighting.GlobalShadows = Settings.OriginalGlobalShadows end
-            Lighting.FogEnd = 100000
-            Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-            pcall(function() setfpscap(60) end)
-            AddNotification("OZ HUB", "Modo Performance desativado", 3)
-        end
-    end
-})
-
--- ========== ANIMATIONS TAB ==========
-local AnimationsTab = Window:Tab({Title = "Animations", Icon = "layers"})
-
-AnimationsTab:Section({Title = "Emote Player"})
-
-AnimationsTab:Toggle({
-    Title = "Loop Animation",
-    Default = false,
-    Callback = function(Value)
-        Settings.loopEmote = Value
-        if currentEmoteTrack then
-            currentEmoteTrack.Looped = Value
-        end
-    end
-})
-
-AnimationsTab:Dropdown({
-    Title = "Emotes",
-    Values = {
-        "Footwork Funk Brasileiro 2", "Sentar", "Passinho do Jamal", "Rocker Festa", "Kareen",
-        "Popular", "Falso Morto MM2", "Cagar", "Dança Hype", "Abraçar", "Rebolada"
-    },
-    Default = "Nenhum",
-    Callback = function(Value)
-        for _, emote in pairs(EMOTES) do
-            if emote.name == Value then
-                playEmote(emote.id, Settings.emoteSpeed)
-                break
-            end
-        end
-    end
-})
-
-AnimationsTab:Button({
-    Title = "Stop Animation",
-    Callback = function()
-        stopEmote()
-    end
-})
-
-AnimationsTab:Slider({
-    Title = "Emote Speed",
-    Step = 1,
-    Value = {Min = 1, Max = 10, Default = 1},
-    Callback = function(Value)
-        Settings.emoteSpeed = Value
-        if currentEmoteTrack then
-            currentEmoteTrack:AdjustSpeed(Value)
-        end
-    end
-})
-
-AnimationsTab:Section({Title = "Full Packs"})
-
-AnimationsTab:Dropdown({
-    Title = "Animation Packs",
-    Values = {
-        "Pirate", "Cartoony", "Hero", "Knight", "SuperHero", "WereWolf", "Vampire", "Astronaut",
-        "Malvada", "Walmart", "Dancing", "RunwayGlamour", "Amazon", "Mage", "Toy", "Elder",
-        "AdidasAura", "Classic", "Stylish", "Sports", "AdidasCommunity", "Robot", "Glow", "Bold", "Levitation"
-    },
-    Default = "Nenhum",
-    Callback = function(Value)
-        if Value == "Nenhum" then
-            selectedAnimationPack = nil
-        else
-            selectedAnimationPack = Value
-            aplicarPack(ANIMATION_PACKS[Value])
-        end
-    end
-})
-
--- ============================================
--- EVENTOS E LIMPEZA
--- ============================================
-
-jumpConnection = UserInputService.JumpRequest:Connect(function()
-    if Settings.infJumpEnabled and not UserInputService:GetFocusedTextBox() then
-        local humanoid = GetChar() and GetChar():FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:ChangeState("Jumping")
-        end
-    end
-end)
-
-local eventConnections = {}
-
-table.insert(eventConnections, player.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    if Settings.flying then startFly() end
-    if Settings.NoClipEnabled then aplicarNoClip() end
-    if selectedAnimationPack then aplicarPack(ANIMATION_PACKS[selectedAnimationPack]) end
-    if Settings.SpeedToggleEnabled then aplicarSpeed() end
-    if Settings.FOVCamToggleEnabled then aplicarFov() end
-    if Settings.ESPMM2Enabled then iniciarESPMM2() end
-end))
-
-table.insert(eventConnections, player.CharacterRemoving:Connect(function()
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
-    bodyVelocity, bodyGyro = nil, nil
-end))
-
-table.insert(eventConnections, Players.PlayerAdded:Connect(function(plr)
-    if plr == player then return end
-    task.wait(0.5)
-    if Settings.ESPEnabled then setupESPForPlayer(plr) end
-    if Settings.ESPMM2Enabled then iniciarESPMM2() end
-end))
-
-table.insert(eventConnections, Players.PlayerRemoving:Connect(function(plr)
-    destroyESP(plr)
-end))
-
-for _, plr in ipairs(Players:GetPlayers()) do
-    if plr ~= player then
-        plr.CharacterAdded:Connect(function()
-            task.wait(0.5)
-            if Settings.ESPEnabled then setupESPForPlayer(plr) end
-            if Settings.ESPMM2Enabled then iniciarESPMM2() end
-        end)
-    end
-end
-
-task.spawn(function()
-    while true do
-        task.wait(300)
-        for i, obj in pairs(coinCache) do
-            if not obj or not obj.Parent then
-                coinCache[i] = nil
-            end
-        end
-        local now = tick()
-        for target, data in pairs(lastPositions) do
-            if now - data.time > 30 then
-                lastPositions[target] = nil
-            end
-        end
-        collectgarbage("collect")
-    end
-end)
-
-Window:OnDestroy(function()
-    if LoopManager.conn then
-        LoopManager.conn:Disconnect()
-        LoopManager.conn = nil
-    end
-    LoopManager.tasks = {}
+    if(dialogid == DIALOG_ORG_FARDA_MENU && response)
+    {
+        if(listitem == 0)
+        {
+        	if(PlayerInfo[playerid][pFardado] == true) return SendClientMessage(playerid, -1, "Voce ja esta fardado!");
+            PlayerInfo[playerid][pSkin] = GetPlayerSkin(playerid);
+            PlayerInfo[playerid][pFardado] = true;
+            AtualizarFardaPlayer(playerid);
+            SalvarConta(playerid);
+        } 
+        if(listitem == 1) 
+        {
+        	if(PlayerInfo[playerid][pFardado] == false) return SendClientMessage(playerid, -1, "Voce nao esta fardado!");
+            SetPlayerSkin(playerid, PlayerInfo[playerid][pSkin]);
+            PlayerInfo[playerid][pFardado] = false;
+            SalvarConta(playerid);
+        }
+        return 1;
+    }
     
-    stopESP()
-    pararESPMM2()
+    if(dialogid == DIALOG_ORG_COFRE_MENU && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        switch(listitem) 
+        {
+            case 0:
+            {
+                ShowPlayerDialog(playerid, DIALOG_ORG_COFRE_DEPOSITAR, DIALOG_STYLE_INPUT, "Depositar Dinheiro", "Digite o valor que deseja depositar no cofre:", "Depositar", "Voltar");
+            }
+            case 1:
+            {
+                new str[100];
+                format(str, sizeof(str), "Saldo do Cofre: R$ %d\nDigite o valor que deseja sacar:", OrgDados[org][OrgDinheiro]);
+                ShowPlayerDialog(playerid, DIALOG_ORG_COFRE_RETIRAR, DIALOG_STYLE_INPUT, "Sacar Dinheiro", str, "Sacar", "Voltar");
+            }
+            case 2:
+            {
+                new lista[1500], item[100];
+                strcat(lista, "Slot\tArma\tBalas\n");
+                for(new i = 0; i < MAX_SLOTS_COFRE; i++) {
+                    if(OrgArmas[org][i][CofreArmaID] == 0) format(item, sizeof(item), "%d\tLivre\t-\n", i+1);
+                    else format(item, sizeof(item), "%d\tArma %d\t%d\n", i+1, OrgArmas[org][i][CofreArmaID], OrgArmas[org][i][CofreArmaMunicao]);
+                    strcat(lista, item);
+                }
+                ShowPlayerDialog(playerid, DIALOG_ORG_COFRE_ARMAS, DIALOG_STYLE_TABLIST_HEADERS, "Itens da Família", lista, "Selecionar", "Fechar");
+            }
+        }
+        return 1;
+    }
     
-    if clickConnection then
-        clickConnection:Disconnect()
-        clickConnection = nil
-    end
+    if(dialogid == DIALOG_ORG_COFRE_DEPOSITAR && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new valor = strval(inputtext);
+        if(valor <= 0) return SendClientMessage(playerid, -1, "Valor inválido!");
+        if(GetPlayerMoney(playerid) < valor) return SendClientMessage(playerid, -1, "Você não tem esse dinheiro!");
+        
+        GivePlayerMoney(playerid, -valor);
+        OrgDados[org][OrgDinheiro] += valor;
+        SalvarOrgs();
+        
+        new msg[100];
+        format(msg, sizeof(msg), "Você depositou R$ %d no cofre da organização!", valor);
+        SendClientMessage(playerid, -1, msg);
+        LogOrgAction(org, playerid, msg);
+        return 1;
+    }
     
-    if Settings.SpeedToggleEnabled then
-        reverterSpeed()
-        Settings.SpeedToggleEnabled = false
-    end
+    if(dialogid == DIALOG_ORG_COFRE_RETIRAR && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new valor = strval(inputtext);
+        if(valor <= 0) return SendClientMessage(playerid, -1, "Valor inválido!");
+        if(OrgDados[org][OrgDinheiro] < valor) return SendClientMessage(playerid, -1, "Saldo insuficiente no cofre!");
+        
+        OrgDados[org][OrgDinheiro] -= valor;
+        GivePlayerMoney(playerid, valor);
+        SalvarOrgs();
+        
+        new msg[100];
+        format(msg, sizeof(msg), "Você sacou R$ %d do cofre da organização!", valor);
+        SendClientMessage(playerid, -1, msg);
+        LogOrgAction(org, playerid, msg);
+        return 1;
+    }
     
-    if Settings.FOVCamToggleEnabled then
-        reverterFov()
-        Settings.FOVCamToggleEnabled = false
-    end
+    if(dialogid == DIALOG_ORG_COFRE_ARMAS && response)
+    {
+        MenuSlotSelecionado[playerid] = listitem;
+        new org = MenuOrgSelecionada[playerid];
+        if(OrgArmas[org][listitem][CofreArmaID] == 0) {
+            ShowPlayerDialog(playerid, DIALOG_ORG_COFRE_DEP_A, DIALOG_STYLE_MSGBOX, "Slot Vazio", "Deseja DEPOSITAR a arma que você está segurando neste slot?", "Depositar", "Voltar");
+        } else {
+            ShowPlayerDialog(playerid, DIALOG_ORG_COFRE_RET_A, DIALOG_STYLE_MSGBOX, "Slot Ocupado", "Deseja RETIRAR esta arma do cofre?", "Retirar", "Voltar");
+        }
+        return 1;
+    }
     
-    if Settings.flying then
-        toggleFly(false)
-        Settings.flying = false
-    end
+    if(dialogid == DIALOG_ORG_COFRE_DEP_A && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new slot = MenuSlotSelecionado[playerid];
+        new arma = GetPlayerWeapon(playerid);
+        new balas = GetPlayerAmmo(playerid);
+        
+        if(arma == 0 || balas <= 0) return SendClientMessage(playerid, -1, "Você não está segurando nenhuma arma válida!");
+        if(OrgArmas[org][slot][CofreArmaID] != 0) return SendClientMessage(playerid, -1, "Este slot já está ocupado!");
+        
+        OrgArmas[org][slot][CofreArmaID] = arma;
+        OrgArmas[org][slot][CofreArmaMunicao] = balas;
+        RemoverPlayerWeapon(playerid, arma);
+        
+        new msg[128];
+        format(msg, sizeof(msg), "Depositou arma ID %d (%d balas) no slot %d", arma, balas, slot+1);
+        LogOrgAction(org, playerid, msg);
+        SalvarOrgs();
+        SendClientMessage(playerid, -1, "Arma depositada!");
+        return 1;
+    }
     
-    if Settings.NoClipEnabled then
-        reverterNoClip()
-        Settings.NoClipEnabled = false
-    end
+    if(dialogid == DIALOG_ORG_COFRE_RET_A && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new slot = MenuSlotSelecionado[playerid];
+        
+        GivePlayerWeapon(playerid, OrgArmas[org][slot][CofreArmaID], OrgArmas[org][slot][CofreArmaMunicao]);
+        
+        new msg[128];
+        format(msg, sizeof(msg), "Retirou arma ID %d (%d balas) do slot %d", OrgArmas[org][slot][CofreArmaID], OrgArmas[org][slot][CofreArmaMunicao], slot+1);
+        LogOrgAction(org, playerid, msg);
+        
+        OrgArmas[org][slot][CofreArmaID] = 0;
+        OrgArmas[org][slot][CofreArmaMunicao] = 0;
+        SalvarOrgs();
+        SendClientMessage(playerid, -1, "Arma retirada!");
+        return 1;
+    }
     
-    if Settings.AutoFarmEnabled then
-        AutoFarmToggle(false)
-        Settings.AutoFarmEnabled = false
-    end
+    if(dialogid == DIALOG_ORG_ARSENAL_ITENS && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new custos[6] = {300, 250, 150, 100, 80, 50};
+        new armas[6] = {31, 29, 25, 24, 23, 0};
+        new balas[6] = {100, 100, 50, 100, 50, 1};
+        new nomes[6][20] = {"M4", "MP5", "Dose", "Desert Eagle", "Taser", "Colete"};
+        
+        if(OrgDados[org][OrgMaterial] < custos[listitem]) {
+            SendClientMessage(playerid, -1, "Material insuficiente no arsenal!");
+            return 1;
+        }
+        
+        if(listitem == 0 || listitem == 1 || listitem == 2) {
+            if(PlayerInfo[playerid][pOrgCargo] < 2) {
+                SendClientMessage(playerid, -1, "Seu cargo não tem permissão para pegar esta arma!");
+                return 1;
+            }
+        }
+        
+        if(listitem == 5) {
+        	SetPlayerArmour(playerid, 100.0);
+            SendClientMessage(playerid, -1, "Voce pegou um colete a prova de balas!");
+            return 1;
+        }
+        
+        OrgDados[org][OrgMaterial] -= custos[listitem];
+        GivePlayerWeapon(playerid, armas[listitem], balas[listitem]);
+        
+        AtualizarTextLabelsOrg(org);
+        SalvarOrgs();
+        
+        new msg[128];
+        format(msg, sizeof(msg), "Pegou %s do arsenal (material restante: %d)", nomes[listitem], OrgDados[org][OrgMaterial]);
+        LogOrgAction(org, playerid, msg);
+        SendClientMessage(playerid, -1, msg);
+        return 1;
+    }
+   
+    if(dialogid == DIALOG_ORG_MENU && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        switch(listitem) {
+            case 0: 
+            {
+                new lista[3000], item[300];
+                strcat(lista, "Nome\tCargo\tStatus\n");
+                
+                for(new cargo = 4; cargo >= 0; cargo--) {
+                    for(new m = 0; m < MAX_MEMBROS_ORG; m++) {
+                        if(OrgMembros[org][m][MembroAtivo] && OrgMembros[org][m][MembroCargo] == cargo) {
+                            new online = 0;
+                            for(new p = 0; p < MAX_PLAYERS; p++) {
+                                if(IsPlayerConnected(p)) {
+                                    new nomep[MAX_PLAYER_NAME];
+                                    GetPlayerName(p, nomep, sizeof(nomep));
+                                    if(strcmp(nomep, OrgMembros[org][m][MembroNome]) == 0) {
+                                        online = 1;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            new cargonome[25];
+                            GetCargoNome(OrgDados[org][OrgTipo], cargo, cargonome, 25);
+                            
+                            if(online) {
+                                format(item, sizeof(item), "%s\t%s\tOnline\n", OrgMembros[org][m][MembroNome], cargonome);
+                            } else {
+                                format(item, sizeof(item), "%s\t%s\tOffline\n", OrgMembros[org][m][MembroNome], cargonome);
+                            }
+                            strcat(lista, item);
+                        }
+                    }
+                }
+                
+                if(strlen(lista) <= 20) {
+                    SendClientMessage(playerid, -1, "Nenhum membro encontrado!");
+                    return 1;
+                }
+                
+                ShowPlayerDialog(playerid, DIALOG_ORG_MEMBROS, DIALOG_STYLE_TABLIST_HEADERS, "Membros da Organização", lista, "Gerenciar", "Fechar");
+                MenuOrgSelecionada[playerid] = org;
+            }
+            case 1:
+            {
+                ShowPlayerDialog(playerid, DIALOG_ORG_CONVIDAR, DIALOG_STYLE_INPUT, "Convidar Membro", "Digite o ID do jogador para convidar:", "Convidar", "Voltar");
+            }
+            case 2:
+            {
+                if(!IsPlayerLeader(playerid) && !IsPlayerSubLeader(playerid)) return SendClientMessage(playerid, -1, "Sem permissão!");
+                if(OrgDados[org][OrgTipo] == ORG_TIPO_CRIMINOSA) {
+                    if(OrgDados[org][CofreStatus] == false) OrgDados[org][CofreStatus] = true;
+                    else OrgDados[org][CofreStatus] = false;
+                    AtualizarTextLabelsOrg(org);
+                    SendClientMessage(playerid, -1, OrgDados[org][CofreStatus] == false ? "Cofre ABERTO!" : "Cofre FECHADO!");
+                } else {
+                    if(OrgDados[org][ArsenalStatus] == false) OrgDados[org][ArsenalStatus] = true;
+                    else OrgDados[org][ArsenalStatus] = false;
+                    AtualizarTextLabelsOrg(org);
+                    SendClientMessage(playerid, -1, OrgDados[org][ArsenalStatus] == false ? "Arsenal ABERTO!" : "Arsenal FECHADO!");
+                }
+                SalvarOrgs();
+            }
+            case 3:
+            {
+                ShowPlayerDialog(playerid, DIALOG_ORG_SAIR, DIALOG_STYLE_MSGBOX, "Sair da Organização", 
+                    "Tem certeza que deseja sair da organização?\nVocê perderá todos os seus cargos e benefícios.", "Sim", "Não");
+                MenuOrgSelecionada[playerid] = org;
+            }
+        }
+        return 1;
+    }
     
-    if Settings.SpinbotEnabled then
-        toggleSpinbot(false)
-        Settings.SpinbotEnabled = false
-    end
+    if(dialogid == DIALOG_ORG_SAIR && response)
+	{
+		new org = MenuOrgSelecionada[playerid];
+		new nome[MAX_PLAYER_NAME];
+		GetPlayerName(playerid, nome, sizeof(nome));
+		
+		RemoverMembro(org, nome);
+		PlayerInfo[playerid][pOrgID] = -1;
+		PlayerInfo[playerid][pOrgCargo] = 0;
+		PlayerInfo[playerid][pFardado] = false;
+		SetPlayerSkin(playerid, PlayerInfo[playerid][pSkin]);
+		SalvarConta(playerid);
+		
+		if(IsPlayerLeader(playerid)) {
+		    strmid(OrgDados[org][OrgDono], "Nenhum", 0, 7, MAX_PLAYER_NAME);
+		    OrgDados[org][TemDono] = false;
+		    SalvarOrgs();
+		    SendClientMessage(playerid, -1, "Você era o líder e saiu! A organização agora está sem dono.");
+		    LogOrgAction(org, playerid, "Líder saiu da organização (org agora sem dono)");
+		} else {
+		    SendClientMessage(playerid, -1, "Você saiu da organização!");
+		    LogOrgAction(org, playerid, "Saiu da organização");
+		}
+		
+		return 1;
+	}
     
-    Settings.infJumpEnabled = false
-    if jumpConnection then
-        jumpConnection:Disconnect()
-        jumpConnection = nil
-    end
+    if(dialogid == DIALOG_ORG_CONVIDAR && response)
+    {
+        new targetid = strval(inputtext);
+        if(!IsPlayerConnected(targetid)) return SendClientMessage(playerid, -1, "Jogador não está online!");
+        if(IsPlayerInAnyOrg(targetid)) return SendClientMessage(playerid, -1, "Este jogador já está em uma organização!");
+        
+        new org = MenuOrgSelecionada[playerid];
+        new convidado[MAX_PLAYER_NAME];
+        GetPlayerName(targetid, convidado, sizeof(convidado));
+        
+        AdicionarMembro(org, convidado, 0);
+        PlayerInfo[targetid][pOrgID] = org;
+        PlayerInfo[targetid][pOrgCargo] = 0;
+        SalvarConta(targetid);
+        
+        new msg[128];
+        format(msg, sizeof(msg), "Você entrou na organização %s!", OrgDados[org][OrgNome]);
+        SendClientMessage(targetid, -1, msg);
+        format(msg, sizeof(msg), "%s entrou na organização!", convidado);
+        LogOrgAction(org, playerid, msg);
+        
+        SalvarOrgs();
+        return 1;
+    }
     
-    if Settings.LockCamEnabled then
-        Settings.LockCamEnabled = false
-        if LockUI then LockUI:Destroy() end
-        if MiraUI then MiraUI:Destroy() end
-        LoopManager:Remove("LockCam")
-        local char = GetChar()
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.CameraOffset = Vector3.new(0, 0, 0)
-        end
-    end
+    if(dialogid == DIALOG_ORG_MEMBROS && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new linha[200];
+        strmid(linha, inputtext, 0, strlen(inputtext), 200);
+        
+        new nome_membro[MAX_PLAYER_NAME];
+        new i, j;
+        
+        while(linha[i] != '\0' && j < MAX_PLAYER_NAME-1) {
+            if(linha[i] == '{') {
+                while(linha[i] != '\0' && linha[i] != '}') i++;
+                if(linha[i] == '}') i++;
+                continue;
+            }
+            if(linha[i] == ' ' || linha[i] == '\n') break;
+            nome_membro[j++] = linha[i++];
+        }
+        nome_membro[j] = '\0';
+        
+        if(strlen(nome_membro) == 0) {
+            strmid(nome_membro, inputtext, 0, strlen(inputtext));
+        }
+        
+        new membroIndex = -1;
+        for(new m = 0; m < MAX_MEMBROS_ORG; m++) {
+            if(OrgMembros[org][m][MembroAtivo] && strcmp(OrgMembros[org][m][MembroNome], nome_membro, true) == 0) {
+                membroIndex = m;
+                break;
+            }
+        }
+        
+        if(membroIndex == -1) return SendClientMessage(playerid, -1, "Membro não encontrado!");
+        
+        MenuMembroIndex[playerid] = membroIndex;
+        MenuOrgSelecionada[playerid] = org;
+        
+        new str[300];
+        strcat(str, "1. Promover\n");
+        strcat(str, "2. Rebaixar\n");
+        strcat(str, "3. Expulsar");
+        ShowPlayerDialog(playerid, DIALOG_ORG_MEMBRO_ACAO, DIALOG_STYLE_LIST, "Ações do Membro", str, "Selecionar", "Fechar");
+        return 1;
+    }
     
-    stopAll()
+    if(dialogid == DIALOG_ORG_MEMBRO_ACAO && response)
+    {
+        new org = MenuOrgSelecionada[playerid];
+        new membroIndex = MenuMembroIndex[playerid];
+        new nome[MAX_PLAYER_NAME];
+        strmid(nome, OrgMembros[org][membroIndex][MembroNome], 0, strlen(OrgMembros[org][membroIndex][MembroNome]), MAX_PLAYER_NAME);
+        new cargoAtual = OrgMembros[org][membroIndex][MembroCargo];
+        
+        new meuNome[MAX_PLAYER_NAME];
+        GetPlayerName(playerid, meuNome, sizeof(meuNome));
+        
+        if(strcmp(nome, meuNome) == 0) {
+            SendClientMessage(playerid, -1, "Você não pode fazer isso consigo mesmo!");
+            return 1;
+        }
+        
+        if(listitem == 0) {
+            if(cargoAtual >= 4) return SendClientMessage(playerid, -1, "Este membro já está no cargo máximo!");
+            
+            new novoCargo = cargoAtual + 1;
+            AtualizarMembroOffline(org, nome, novoCargo);
+            
+            for(new p = 0; p < MAX_PLAYERS; p++) {
+                if(IsPlayerConnected(p)) {
+                    new nomep[MAX_PLAYER_NAME];
+                    GetPlayerName(p, nomep, sizeof(nomep));
+                    if(strcmp(nomep, nome) == 0) {
+                        PlayerInfo[p][pOrgCargo] = novoCargo;
+                        SalvarConta(p);
+                        new cargonome[25];
+                        GetCargoNome(OrgDados[org][OrgTipo], novoCargo, cargonome, 25);
+                        new msg[128];
+                        format(msg, sizeof(msg), "Você foi promovido a %s!", cargonome);
+                        SendClientMessage(p, -1, msg);
+                        if(PlayerInfo[p][pFardado] == true) AtualizarFardaPlayer(p);
+                        break;
+                    }
+                }
+            }
+            
+            new cargonome[25];
+            GetCargoNome(OrgDados[org][OrgTipo], novoCargo, cargonome, 25);
+            new msg[128];
+            format(msg, sizeof(msg), "%s foi promovido a %s", nome, cargonome);
+            LogOrgAction(org, playerid, msg);
+            SalvarOrgs();
+            SendClientMessage(playerid, -1, "Membro promovido!");
+            
+        } else if(listitem == 1) {
+            if(cargoAtual <= 0) return SendClientMessage(playerid, -1, "Este membro já está no cargo mínimo!");
+            
+            new novoCargo = cargoAtual - 1;
+            AtualizarMembroOffline(org, nome, novoCargo);
+            
+            for(new p = 0; p < MAX_PLAYERS; p++) {
+                if(IsPlayerConnected(p)) {
+                    new nomep[MAX_PLAYER_NAME];
+                    GetPlayerName(p, nomep, sizeof(nomep));
+                    if(strcmp(nomep, nome) == 0) {
+                        PlayerInfo[p][pOrgCargo] = novoCargo;
+                        SalvarConta(p);
+                        new cargonome[25];
+                        GetCargoNome(OrgDados[org][OrgTipo], novoCargo, cargonome, 25);
+                        new msg[128];
+                        format(msg, sizeof(msg), "Você foi rebaixado a %s!", cargonome);
+                        SendClientMessage(p, -1, msg);
+                        if(PlayerInfo[p][pFardado] == true) AtualizarFardaPlayer(p);
+                        break;
+                    }
+                }
+            }
+            
+            new cargonome[25];
+            GetCargoNome(OrgDados[org][OrgTipo], novoCargo, cargonome, 25);
+            new msg[128];
+            format(msg, sizeof(msg), "%s foi rebaixado a %s", nome, cargonome);
+            LogOrgAction(org, playerid, msg);
+            SalvarOrgs();
+            SendClientMessage(playerid, -1, "Membro rebaixado!");
+            
+        } else if(listitem == 2) {
+            RemoverMembro(org, nome);
+            
+            for(new p = 0; p < MAX_PLAYERS; p++) {
+                if(IsPlayerConnected(p)) {
+                    new nomep[MAX_PLAYER_NAME];
+                    GetPlayerName(p, nomep, sizeof(nomep));
+                    if(strcmp(nomep, nome) == 0) {
+                        PlayerInfo[p][pOrgID] = -1;
+                        PlayerInfo[p][pOrgCargo] = 0;
+                        PlayerInfo[p][pFardado] = false;
+                        SetPlayerSkin(p, PlayerInfo[p][pSkin]);
+                        SalvarConta(p);
+                        SendClientMessage(p, -1, "Você foi expulso da organização!");
+                        break;
+                    }
+                }
+            }
+            
+            new msg[128];
+            format(msg, sizeof(msg), "%s foi expulso da organização!", nome);
+            LogOrgAction(org, playerid, msg);
+            SalvarOrgs();
+            SendClientMessage(playerid, -1, "Membro expulso!");
+        }
+        return 1;
+    }
     
-    if camera then
-        camera.FieldOfView = 70
-    end
+    if(dialogid == DIALOG_ORG_SETAR_ID && response)
+    {
+        new targetid = strval(inputtext);
+        if(!IsPlayerConnected(targetid)) return SendClientMessage(playerid, -1, "Jogador ID offline.");
+        if(IsPlayerInAnyOrg(targetid)) return SendClientMessage(playerid, -1, "Este jogador já está em uma organização!");
+        
+        MenuPlayerAlvoID[playerid] = targetid;
+        
+        new lista[2000], item[200];
+        strcat(lista, "Nome\tStatus\n");
+        for(new i = 0; i < MAX_ORGS; i++) {
+            if(OrgDados[i][OrgCriada] && !OrgDados[i][TemDono]) {
+                format(item, sizeof(item), "%s\tDisponível\n", OrgDados[i][OrgNome]);
+                strcat(lista, item);
+            }
+        }
+        if(strlen(lista) <= 20) {
+            SendClientMessage(playerid, -1, "Nenhuma organização disponível para receber líder!");
+            return 1;
+        }
+        ShowPlayerDialog(playerid, DIALOG_ORG_SETAR_SEL, DIALOG_STYLE_TABLIST_HEADERS, "Selecione a Organização", lista, "Setar", "Cancelar");
+        return 1;
+    }
     
-    if Settings.PerformanceMode then
-        if Settings.OriginalBrightness then Lighting.Brightness = Settings.OriginalBrightness end
-        if Settings.OriginalGlobalShadows ~= nil then Lighting.GlobalShadows = Settings.OriginalGlobalShadows end
-        Lighting.FogEnd = 100000
-        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-        Settings.PerformanceMode = false
-    end
+    if(dialogid == DIALOG_ORG_SETAR_SEL && response)
+    {
+        new encontrados = 0, id_real = -1;
+        for(new i = 0; i < MAX_ORGS; i++) {
+            if(OrgDados[i][OrgCriada] && !OrgDados[i][TemDono]) {
+                if(encontrados == listitem) { id_real = i; break; }
+                encontrados++;
+            }
+        }
+        if(id_real == -1 || !OrgDados[id_real][OrgCriada]) return SendClientMessage(playerid, -1, "Organização inválida!");
+        
+        new target = MenuPlayerAlvoID[playerid];
+
+        PlayerInfo[target][pOrgID] = id_real;
+        PlayerInfo[target][pOrgCargo] = 4;
+        SalvarConta(target);
+        
+        format(OrgDados[id_real][OrgDono], MAX_PLAYER_NAME, "%s", pName(target));
+        OrgDados[id_real][TemDono] = true;
+        
+        AdicionarMembro(id_real, pName(target), 4);
+        SalvarOrgs();
+        
+        new msg[128];
+        format(msg, sizeof(msg), "Você foi promovido a Líder da organização: %s", OrgDados[id_real][OrgNome]);
+        SendClientMessage(target, -1, msg);
+        format(msg, sizeof(msg), "%s agora é Líder de %s", pName(target), OrgDados[id_real][OrgNome]);
+        SendClientMessage(playerid, -1, msg);
+        return 1;
+    }
+    return 0;
+}
+
+public OnPlayerClickMap(playerid, Float:fX, Float:fY, Float:fZ)
+{
+    SetPlayerPos(playerid, fX, fY, fZ);
+    return 1;
+}
+
+// ============================================================================
+// SAVES
+// ============================================================================
+
+stock pName(playerid)
+{
+	new name[MAX_PLAYER_NAME];
+	GetPlayerName(playerid, name, sizeof(name));
+	return name;
+}
+
+stock Arquivo(playerid)
+{
+	new file[64];
+	format(file, sizeof(file), "Contas/%s.ini", pName(playerid));
+	return file;
+}
+
+stock SalvarConta(playerid)
+{
+	if(DOF2_FileExists(Arquivo(playerid)))
+	{
+	    DOF2_SetInt(Arquivo(playerid), "Admin", PlayerInfo[playerid][pAdmin]);
+	    DOF2_SetInt(Arquivo(playerid), "Dinheiro", GetPlayerMoney(playerid));
+	    DOF2_SetInt(Arquivo(playerid), "Skin", PlayerInfo[playerid][pSkin]);
+	    DOF2_SetBool(Arquivo(playerid), "Fardado", PlayerInfo[playerid][pFardado]);
+	    DOF2_SetInt(Arquivo(playerid), "OrgID", PlayerInfo[playerid][pOrgID]);
+	    DOF2_SetInt(Arquivo(playerid), "OrgCargo", PlayerInfo[playerid][pOrgCargo]);
+	    
+	    if(PlayerInfo[playerid][pFardado] == true) {
+	        DOF2_SetInt(Arquivo(playerid), "SkinFardado", GetPlayerSkin(playerid));
+	    }
+	    
+	    GetPlayerPos(playerid, PlayerInfo[playerid][pPosX], PlayerInfo[playerid][pPosY], PlayerInfo[playerid][pPosZ]);
+	    GetPlayerFacingAngle(playerid, PlayerInfo[playerid][pPosR]);
+	    PlayerInfo[playerid][pInterior] = GetPlayerInterior(playerid);
+	    PlayerInfo[playerid][pVirtualWorld] = GetPlayerVirtualWorld(playerid);
+	    
+	    DOF2_SetFloat(Arquivo(playerid), "PosX", PlayerInfo[playerid][pPosX]);
+	    DOF2_SetFloat(Arquivo(playerid), "PosY", PlayerInfo[playerid][pPosY]);
+	    DOF2_SetFloat(Arquivo(playerid), "PosZ", PlayerInfo[playerid][pPosZ]);
+	    DOF2_SetFloat(Arquivo(playerid), "PosR", PlayerInfo[playerid][pPosR]);
+	    DOF2_SetInt(Arquivo(playerid), "Interior", PlayerInfo[playerid][pInterior]);
+	    DOF2_SetInt(Arquivo(playerid), "VirtualWorld", PlayerInfo[playerid][pVirtualWorld]);
+	    
+	    GetPlayerHealth(playerid, PlayerInfo[playerid][pVida]);
+	    GetPlayerArmour(playerid, PlayerInfo[playerid][pArmour]);
+	    
+	    DOF2_SetFloat(Arquivo(playerid), "Vida", PlayerInfo[playerid][pVida]);
+	    DOF2_SetFloat(Arquivo(playerid), "Armour", PlayerInfo[playerid][pArmour]);
+	    DOF2_SaveFile();
+	
+	    SalvarArmas(playerid);
+	}
+    return 1;
+}
+
+stock CarregarConta(playerid)
+{
+    if(DOF2_FileExists(Arquivo(playerid)))
+    {
+        PlayerInfo[playerid][pAdmin] = DOF2_GetInt(Arquivo(playerid), "Admin");
+        PlayerInfo[playerid][pDinheiro] = DOF2_GetInt(Arquivo(playerid), "Dinheiro");
+        PlayerInfo[playerid][pSkin] = DOF2_GetInt(Arquivo(playerid), "Skin");
+        PlayerInfo[playerid][pFardado] = DOF2_GetBool(Arquivo(playerid), "Fardado");
+        PlayerInfo[playerid][pOrgID] = DOF2_GetInt(Arquivo(playerid), "OrgID");
+        PlayerInfo[playerid][pOrgCargo] = DOF2_GetInt(Arquivo(playerid), "OrgCargo");
     
-    if floatingGui then floatingGui:Destroy() end
-    if PlayersUI then PlayersUI:Destroy() end
+        if(PlayerInfo[playerid][pOrgID] != -1 && !OrgDados[PlayerInfo[playerid][pOrgID]][OrgCriada]) {
+            PlayerInfo[playerid][pOrgID] = -1;
+            PlayerInfo[playerid][pOrgCargo] = 0;
+            PlayerInfo[playerid][pFardado] = false;
+            SalvarConta(playerid);
+        }
+        
+        if(PlayerInfo[playerid][pOrgID] != -1 && OrgDados[PlayerInfo[playerid][pOrgID]][OrgCriada]) {
+            new org = PlayerInfo[playerid][pOrgID];
+            new nome[MAX_PLAYER_NAME];
+            GetPlayerName(playerid, nome, sizeof(nome));
+            
+            new jaExiste = 0;
+            for(new i = 0; i < MAX_MEMBROS_ORG; i++) {
+                if(OrgMembros[org][i][MembroAtivo] && strcmp(OrgMembros[org][i][MembroNome], nome) == 0) {
+                    jaExiste = 1;
+                    // Atualiza o cargo se necessário
+                    if(OrgMembros[org][i][MembroCargo] != PlayerInfo[playerid][pOrgCargo]) {
+                        OrgMembros[org][i][MembroCargo] = PlayerInfo[playerid][pOrgCargo];
+                        SaveOrgMembers(org);
+                    }
+                    break;
+                }
+            }
+            
+            if(!jaExiste) {
+                printf("[FIX] Adicionando %s como membro da org %d (cargo %d)", nome, org, PlayerInfo[playerid][pOrgCargo]);
+                AdicionarMembro(org, nome, PlayerInfo[playerid][pOrgCargo]);
+            }
+            
+            if(OrgMembrosCount[org] == 0) {
+                printf("[FIX] Recarregando membros da org %d para o jogador %s", org, nome);
+                LoadOrgMembers(org);
+            }
+        }
+        
+        if(PlayerInfo[playerid][pFardado] == true) {
+            PlayerInfo[playerid][pSkinFardado] = DOF2_GetInt(Arquivo(playerid), "SkinFardado");
+        }
+        
+        PlayerInfo[playerid][pPosX] = DOF2_GetFloat(Arquivo(playerid), "PosX");
+        PlayerInfo[playerid][pPosY] = DOF2_GetFloat(Arquivo(playerid), "PosY");
+        PlayerInfo[playerid][pPosZ] = DOF2_GetFloat(Arquivo(playerid), "PosZ");
+        PlayerInfo[playerid][pPosR] = DOF2_GetFloat(Arquivo(playerid), "PosR");
+        PlayerInfo[playerid][pInterior] = DOF2_GetInt(Arquivo(playerid), "Interior");
+        PlayerInfo[playerid][pVirtualWorld] = DOF2_GetInt(Arquivo(playerid), "VirtualWorld");
+        PlayerInfo[playerid][pVida] = DOF2_GetFloat(Arquivo(playerid), "Vida");
+        PlayerInfo[playerid][pArmour] = DOF2_GetFloat(Arquivo(playerid), "Armour");
+        
+        SetSpawnPlayer(playerid);
+    }
+    return 1;
+}
+
+SetSpawnPlayer(playerid)
+{
+	new skin;
+    if(PlayerInfo[playerid][pFardado] == true && PlayerInfo[playerid][pOrgID] != -1) {
+        skin = PlayerInfo[playerid][pSkinFardado];
+    } else {
+        skin = PlayerInfo[playerid][pSkin];
+    }
+    ResetPlayerMoney(playerid);
+    GivePlayerMoney(playerid, PlayerInfo[playerid][pDinheiro]);
+    SetPlayerInterior(playerid, PlayerInfo[playerid][pInterior]);
+    SetPlayerVirtualWorld(playerid, PlayerInfo[playerid][pVirtualWorld]);    
+    SetPlayerHealth(playerid, PlayerInfo[playerid][pVida]);
+    SetPlayerArmour(playerid, PlayerInfo[playerid][pArmour]);
+    SetCameraBehindPlayer(playerid);
+	TogglePlayerSpectating(playerid, false);
+
+	PlayerInfo[playerid][pLogado] = true;
+    SetSpawnInfo(playerid, NO_TEAM, skin, PlayerInfo[playerid][pPosX], PlayerInfo[playerid][pPosY], PlayerInfo[playerid][pPosZ], PlayerInfo[playerid][pPosR], 0, 0, 0, 0, 0, 0);
+    SpawnPlayer(playerid);        
+    CarregarArmas(playerid);
+}
+
+stock SalvarArmas(playerid)
+{
+    new path[64];
+    format(path, sizeof(path), "Armas/%s.ini", pName(playerid));
     
-    coinCache = {}
-    lastPositions = {}
+    new arma, municao;
+    new key[24];
+    for(new i = 0; i < 13; i++)
+    {
+        GetPlayerWeaponData(playerid, i, arma, municao);        
+        format(key, sizeof(key), "Arma_%d", i);
+        DOF2_SetInt(path, key, arma);        
+        format(key, sizeof(key), "Municao_%d", i);
+        DOF2_SetInt(path, key, municao);
+    }
+    DOF2_SaveFile();
+    return 1;
+}
+
+stock CarregarArmas(playerid)
+{
+    new path[64];
+    format(path, sizeof(path), "Armas/%s.ini", pName(playerid));
     
-    for _, conn in pairs(eventConnections) do
-        conn:Disconnect()
-    end
+    if(!DOF2_FileExists(path)) return 0;
     
-    RemoveRainbowListener("Notifications")
+    new arma, municao;
+    new key[24];    
+    ResetPlayerWeapons(playerid);        
+    for(new i = 0; i < 13; i++)
+    {
+        format(key, sizeof(key), "Arma_%d", i);
+        arma = DOF2_GetInt(path, key);        
+        format(key, sizeof(key), "Municao_%d", i);
+        municao = DOF2_GetInt(path, key);                
+        if(arma != 0 && municao > 0) {
+            GivePlayerWeapon(playerid, arma, municao);
+        }
+    }
+    return 1;
+}
+
+public SalvarOrgs()
+{
+    new path[40], key[50];
+    for(new i = 0; i < MAX_ORGS; i++) {
+        if(!OrgDados[i][OrgCriada]) continue;
+        
+        format(path, sizeof(path), "orgs/Org_%d.ini", i);
+        if(!DOF2_FileExists(path)) DOF2_CreateFile(path);
+        
+        DOF2_SetString(path, "Nome", OrgDados[i][OrgNome]);
+        DOF2_SetInt(path, "Tipo", OrgDados[i][OrgTipo]);
+        DOF2_SetInt(path, "Cor", OrgDados[i][OrgCor]);
+        DOF2_SetString(path, "Dono", OrgDados[i][OrgDono]);
+        DOF2_SetBool(path, "TemDono", OrgDados[i][TemDono]);
+        DOF2_SetInt(path, "Dinheiro", OrgDados[i][OrgDinheiro]);
+        DOF2_SetInt(path, "Material", OrgDados[i][OrgMaterial]);
+        DOF2_SetBool(path, "CofreStatus", OrgDados[i][CofreStatus]);
+        DOF2_SetBool(path, "ArsenalStatus", OrgDados[i][ArsenalStatus]);
+        DOF2_SetFloat(path, "CofreX", OrgDados[i][CofreX]);
+        DOF2_SetFloat(path, "CofreY", OrgDados[i][CofreY]);
+        DOF2_SetFloat(path, "CofreZ", OrgDados[i][CofreZ]);
+        DOF2_SetFloat(path, "VeicPickupX", OrgDados[i][VeicPickupX]);
+        DOF2_SetFloat(path, "VeicPickupY", OrgDados[i][VeicPickupY]);
+        DOF2_SetFloat(path, "VeicPickupZ", OrgDados[i][VeicPickupZ]);
+        DOF2_SetFloat(path, "FardaX", OrgDados[i][FardaX]);
+        DOF2_SetFloat(path, "FardaY", OrgDados[i][FardaY]);
+        DOF2_SetFloat(path, "FardaZ", OrgDados[i][FardaZ]);
+        DOF2_SetFloat(path, "ArsenalX", OrgDados[i][ArsenalX]);
+        DOF2_SetFloat(path, "ArsenalY", OrgDados[i][ArsenalY]);
+        DOF2_SetFloat(path, "ArsenalZ", OrgDados[i][ArsenalZ]);
+        DOF2_SetInt(path, "SkinOrg", OrgDados[i][SkinOrg]);
+        
+        for(new s = 0; s < MAX_SLOTS_COFRE; s++) {
+            format(key, sizeof(key), "ArmaID_Slot_%d", s); DOF2_SetInt(path, key, OrgArmas[i][s][CofreArmaID]);
+            format(key, sizeof(key), "ArmaBalas_Slot_%d", s); DOF2_SetInt(path, key, OrgArmas[i][s][CofreArmaMunicao]);
+        }
+        
+        for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+            format(key, sizeof(key), "VeicMod_Slot_%d", v); DOF2_SetInt(path, key, OrgFrota[i][v][vModelo]);
+            format(key, sizeof(key), "VeicX_Slot_%d", v); DOF2_SetFloat(path, key, OrgFrota[i][v][vX]);
+            format(key, sizeof(key), "VeicY_Slot_%d", v); DOF2_SetFloat(path, key, OrgFrota[i][v][vY]);
+            format(key, sizeof(key), "VeicZ_Slot_%d", v); DOF2_SetFloat(path, key, OrgFrota[i][v][vZ]);
+            format(key, sizeof(key), "VeicA_Slot_%d", v); DOF2_SetFloat(path, key, OrgFrota[i][v][vA]);
+            format(key, sizeof(key), "VeicNome_Slot_%d", v); DOF2_SetString(path, key, OrgFrota[i][v][NomeModelo]);
+        }
+        
+        SaveOrgMembers(i);
+    }
+    DOF2_SaveFile();
+    return 1;
+}
+
+public CarregarOrgs()
+{
+    new path[40], key[50];
+    new carregadas = 0;
     
-    collectgarbage("collect")
+    for(new i = 0; i < MAX_ORGS; i++) {
+        format(path, sizeof(path), "orgs/Org_%d.ini", i);
+        if(!DOF2_FileExists(path)) {
+            OrgDados[i][OrgCriada] = false;
+            continue;
+        }
+        carregadas++;
+        
+        OrgDados[i][OrgCriada] = true;
+        format(OrgDados[i][OrgNome], 50, "%s", DOF2_GetString(path, "Nome"));
+        OrgDados[i][OrgTipo] = DOF2_GetInt(path, "Tipo");
+        OrgDados[i][OrgCor] = DOF2_GetInt(path, "Cor");        
+		format(OrgDados[i][OrgDono], MAX_PLAYER_NAME, "%s", DOF2_GetString(path, "Dono"));
+        OrgDados[i][TemDono] = DOF2_GetBool(path, "TemDono");
+        OrgDados[i][OrgDinheiro] = DOF2_GetInt(path, "Dinheiro");
+        OrgDados[i][OrgMaterial] = DOF2_GetInt(path, "Material");
+        if(OrgDados[i][OrgMaterial] == 0) OrgDados[i][OrgMaterial] = MATERIAL_INICIAL;
+        OrgDados[i][CofreStatus] = DOF2_GetBool(path, "CofreStatus");
+        OrgDados[i][ArsenalStatus] = DOF2_GetBool(path, "ArsenalStatus");
+        OrgDados[i][CofreX] = DOF2_GetFloat(path, "CofreX");
+        OrgDados[i][CofreY] = DOF2_GetFloat(path, "CofreY");
+        OrgDados[i][CofreZ] = DOF2_GetFloat(path, "CofreZ");
+        OrgDados[i][VeicPickupX] = DOF2_GetFloat(path, "VeicPickupX");
+        OrgDados[i][VeicPickupY] = DOF2_GetFloat(path, "VeicPickupY");
+        OrgDados[i][VeicPickupZ] = DOF2_GetFloat(path, "VeicPickupZ");
+        OrgDados[i][FardaX] = DOF2_GetFloat(path, "FardaX");
+        OrgDados[i][FardaY] = DOF2_GetFloat(path, "FardaY");
+        OrgDados[i][FardaZ] = DOF2_GetFloat(path, "FardaZ");
+        OrgDados[i][ArsenalX] = DOF2_GetFloat(path, "ArsenalX");
+        OrgDados[i][ArsenalY] = DOF2_GetFloat(path, "ArsenalY");
+        OrgDados[i][ArsenalZ] = DOF2_GetFloat(path, "ArsenalZ");
+        OrgDados[i][SkinOrg] = DOF2_GetInt(path, "SkinOrg");
+        
+        for(new s = 0; s < MAX_SLOTS_COFRE; s++) {
+            format(key, sizeof(key), "ArmaID_Slot_%d", s); OrgArmas[i][s][CofreArmaID] = DOF2_GetInt(path, key);
+            format(key, sizeof(key), "ArmaBalas_Slot_%d", s); OrgArmas[i][s][CofreArmaMunicao] = DOF2_GetInt(path, key);
+        }
+        
+        for(new v = 0; v < MAX_VEICULOS_ORG; v++) {
+            if(OrgDados[i][OrgTipo] == ORG_TIPO_CORPORACAO) {
+                OrgFrota[i][v][vModelo] = VeiculosCorporacao[v];
+            } else {
+                OrgFrota[i][v][vModelo] = VeiculosCriminosa[v];
+            }
+            GetVehicleModelName(OrgFrota[i][v][vModelo], OrgFrota[i][v][NomeModelo], 32);
+            OrgFrota[i][v][vSpawnado] = false;
+            OrgFrota[i][v][vID_Atual] = 0;
+        }
+        
+        if(OrgDados[i][CofreX] != 0.0 && OrgDados[i][OrgTipo] == ORG_TIPO_CRIMINOSA) {
+            OrgDados[i][ObjCofre] = CreateDynamicObject(2332, OrgDados[i][CofreX], OrgDados[i][CofreY], OrgDados[i][CofreZ], 0, 0, 0);
+        }
+        
+        if(OrgDados[i][VeicPickupX] != 0.0) {
+            OrgDados[i][PickupVeiculo] = CreateDynamicPickup(19134, 1, OrgDados[i][VeicPickupX], OrgDados[i][VeicPickupY], OrgDados[i][VeicPickupZ]);
+        }
+        
+		if(OrgDados[i][OrgTipo] == ORG_TIPO_CORPORACAO && OrgDados[i][FardaX] != 0.0) {
+		    OrgDados[i][PickupFarda] = CreateDynamicPickup(1275, 1, OrgDados[i][FardaX], OrgDados[i][FardaY], OrgDados[i][FardaZ]);
+		}
+        
+        if(OrgDados[i][ArsenalX] != 0.0 && OrgDados[i][OrgTipo] == ORG_TIPO_CORPORACAO) {
+            OrgDados[i][PickupArsenal] = CreateDynamicPickup(2061, 1, OrgDados[i][ArsenalX], OrgDados[i][ArsenalY], OrgDados[i][ArsenalZ]);
+        }
+        
+        printf("[LOAD] Org %d: %s | Dono: %s | Tipo: %d", i, OrgDados[i][OrgNome], OrgDados[i][OrgDono], OrgDados[i][OrgTipo]);
+        
+        AtualizarTextLabelsOrg(i);
+        LoadOrgMembers(i);
+    }
     
-    AddNotification("OZ HUB", "Hub descarregado", 3)
-end)
+    printf("Carregadas %d organizacoes", carregadas);
+    return 1;
+}
+
+public SaveOrgMembers(orgid)
+{
+    new path[40];
+    format(path, sizeof(path), "orgs/Membros_%d.ini", orgid);
+    if(!DOF2_FileExists(path)) DOF2_CreateFile(path);
+    
+    new key[32];
+    for(new m = 0; m < MAX_MEMBROS_ORG; m++) {
+        if(OrgMembros[orgid][m][MembroAtivo]) {
+            format(key, sizeof(key), "Membro_%d", m);
+            DOF2_SetString(path, key, OrgMembros[orgid][m][MembroNome]);
+            format(key, sizeof(key), "Cargo_%d", m);
+            DOF2_SetInt(path, key, OrgMembros[orgid][m][MembroCargo]);
+        }
+    }
+    DOF2_SetInt(path, "TotalMembros", OrgMembrosCount[orgid]);
+    DOF2_SaveFile();
+}
+
+public LoadOrgMembers(orgid)
+{
+    new path[40], key[32];
+    format(path, sizeof(path), "orgs/Membros_%d.ini", orgid);
+    
+    if(!DOF2_FileExists(path)) {
+        printf("[LOADMEMBRO] Arquivo NAO existe: %s", path);
+        return 0;
+    }
+    
+    printf("[LOADMEMBRO] Carregando membros de: %s", path);
+    
+    OrgMembrosCount[orgid] = DOF2_GetInt(path, "TotalMembros");
+    printf("[LOADMEMBRO] TotalMembros esperado: %d", OrgMembrosCount[orgid]);
+    
+    for(new m = 0; m < MAX_MEMBROS_ORG; m++) {
+        format(key, sizeof(key), "Membro_%d", m);
+        DOF2_GetString(path, key, OrgMembros[orgid][m][MembroNome]);
+        if(strlen(OrgMembros[orgid][m][MembroNome]) > 0) {
+            OrgMembros[orgid][m][MembroAtivo] = true;
+            format(key, sizeof(key), "Cargo_%d", m);
+            OrgMembros[orgid][m][MembroCargo] = DOF2_GetInt(path, key);
+            printf("LOADMEMBRO Org:%d Slot:%d Nome:%s Cargo:%d", orgid, m, OrgMembros[orgid][m][MembroNome], OrgMembros[orgid][m][MembroCargo]);
+        }
+    }
+    return 1;
+}
+
+// ============================================================================
+// COMANDOS
+// ============================================================================
+
+CMD:criarorg(playerid)
+{
+    new str[500];
+    strcat(str, "1. Criar Nova Organização\n");
+    strcat(str, "2. Lista de Organizações Criadas\n");
+    strcat(str, "3. Setar Líder em uma Org");
+    ShowPlayerDialog(playerid, DIALOG_ORG_MAIN, DIALOG_STYLE_LIST, "Gerenciador de Organizações", str, "Selecionar", "Fechar");
+    return 1;
+}
+    
+CMD:mm(playerid)
+{
+    if(PlayerInfo[playerid][pOrgID] == -1) return SendClientMessage(playerid, -1, "Você não está em nenhuma organização!");
+    
+    new org = PlayerInfo[playerid][pOrgID];
+    MenuOrgSelecionada[playerid] = org;
+    
+    new str[500];
+    strcat(str, "1. Lista de Membros\n");
+    strcat(str, "2. Convidar Jogador\n");
+    if(IsPlayerLeader(playerid) || IsPlayerSubLeader(playerid)) {
+        if(OrgDados[org][OrgTipo] == ORG_TIPO_CRIMINOSA) {
+            if(OrgDados[org][CofreStatus] == false) strcat(str, "FECHAR Cofre\n");
+            else strcat(str, "ABRIR Cofre\n");
+        } else {
+            if(OrgDados[org][ArsenalStatus] == false) strcat(str, "FECHAR Arsenal\n");
+            else strcat(str, "ABRIR Arsenal\n");
+        }
+    }
+    strcat(str, "4. Sair da ");
+    if(OrgDados[org][OrgTipo] == ORG_TIPO_CRIMINOSA) strcat(str, "Organização");
+    else strcat(str, "Corporação");
+    
+    ShowPlayerDialog(playerid, DIALOG_ORG_MENU, DIALOG_STYLE_LIST, "Menu da Organização", str, "Selecionar", "Fechar");
+    return 1;
+}
